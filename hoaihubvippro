@@ -7,6 +7,7 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local PLAYER_GUI = player:WaitForChild("PlayerGui")
@@ -14,17 +15,140 @@ local PLAYER_GUI = player:WaitForChild("PlayerGui")
 local AVATAR_IMAGE = "rbxassetid://96252137987835"
 
 local Settings = {
-    Fly = false,
-    NoClip = false,
-    Speed = false,
-    Jump = false,
-    ESP = false,
-    RemoveEffects = false,
-    FlySpeed = 60,
-    WalkSpeed = 32,
-    JumpPower = 70,
-    MenuScale = 1,
+	Fly = false,
+	NoClip = false,
+	Speed = false,
+	Jump = false,
+	PlayerESP = false,
+	Aim = false,
+	RemoveEffects = false,
+	FixLag = false,
+
+	FlySpeed = 60,
+	WalkSpeed = 32,
+	JumpPower = 70,
+	AimRange = 250,
+	AimSmooth = 0.18,
+	MenuScale = 1,
 }
+
+--==================================================
+-- UI HELPERS
+--==================================================
+
+local function corner(parent, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius)
+	c.Parent = parent
+	return c
+end
+
+local function stroke(parent, thickness)
+	local s = Instance.new("UIStroke")
+	s.Color = Color3.fromRGB(150, 70, 255)
+	s.Thickness = thickness
+	s.Transparency = 0.15
+	s.Parent = parent
+	return s
+end
+
+local function createLabel(parent, text, height)
+	local l = Instance.new("TextLabel")
+	l.Size = UDim2.new(1, -8, 0, height or 32)
+	l.BackgroundColor3 = Color3.fromRGB(25, 23, 33)
+	l.Text = text
+	l.TextColor3 = Color3.new(1, 1, 1)
+	l.Font = Enum.Font.Gotham
+	l.TextSize = 11
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.TextWrapped = true
+	l.Parent = parent
+	corner(l, 9)
+	return l
+end
+
+local function createToggle(parent, text, default, callback)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(1, -8, 0, 38)
+	b.BackgroundColor3 = Color3.fromRGB(31, 28, 40)
+	b.TextColor3 = Color3.new(1, 1, 1)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 11
+	b.Parent = parent
+	corner(b, 9)
+
+	local on = default and true or false
+	local function update()
+		b.Text = text .. (on and " [ON]" or " [OFF]")
+		b.BackgroundColor3 = on and Color3.fromRGB(92, 45, 150) or Color3.fromRGB(31, 28, 40)
+	end
+
+	update()
+
+	b.Activated:Connect(function()
+		on = not on
+		update()
+		if callback then
+			callback(on)
+		end
+	end)
+
+	return b
+end
+
+local function createNumberBox(parent, placeholder, value, callback)
+	local box = Instance.new("TextBox")
+	box.Size = UDim2.new(1, -8, 0, 38)
+	box.BackgroundColor3 = Color3.fromRGB(31, 28, 40)
+	box.Text = tostring(value)
+	box.PlaceholderText = placeholder
+	box.TextColor3 = Color3.new(1, 1, 1)
+	box.Font = Enum.Font.Gotham
+	box.TextSize = 11
+	box.ClearTextOnFocus = false
+	box.Parent = parent
+	corner(box, 9)
+
+	box.FocusLost:Connect(function()
+		local n = tonumber(box.Text)
+		if n then
+			callback(n)
+		else
+			box.Text = tostring(value)
+		end
+	end)
+
+	return box
+end
+
+--==================================================
+-- ROOT / CHARACTER HELPERS
+--==================================================
+
+local function getCharacter()
+	return player.Character
+end
+
+local function getRoot()
+	local c = getCharacter()
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function getHumanoid()
+	local c = getCharacter()
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+local function setCharacterCollision(state)
+	local c = getCharacter()
+	if not c then return end
+
+	for _, obj in ipairs(c:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			obj.CanCollide = state
+		end
+	end
+end
 
 --==================================================
 -- GUI
@@ -34,87 +158,74 @@ local gui = Instance.new("ScreenGui")
 gui.Name = "HoaiHub"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = PLAYER_GUI
 
-local function corner(parent, radius)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, radius)
-    c.Parent = parent
-    return c
-end
+local avatarToggle = Instance.new("ImageButton")
+avatarToggle.Name = "MenuToggle"
+avatarToggle.Size = UDim2.fromOffset(72, 72)
+avatarToggle.Position = UDim2.new(0, 22, 0.5, -36)
+avatarToggle.BackgroundColor3 = Color3.fromRGB(20, 16, 30)
+avatarToggle.Image = AVATAR_IMAGE
+avatarToggle.ScaleType = Enum.ScaleType.Crop
+avatarToggle.Parent = gui
+corner(avatarToggle, 36)
+stroke(avatarToggle, 3)
 
-local function stroke(parent, thickness)
-    local s = Instance.new("UIStroke")
-    s.Color = Color3.fromRGB(150, 70, 255)
-    s.Thickness = thickness
-    s.Transparency = 0.15
-    s.Parent = parent
-    return s
-end
-
--- Floating avatar button
-local toggle = Instance.new("ImageButton")
-toggle.Name = "MenuToggle"
-toggle.Size = UDim2.fromOffset(72, 72)
-toggle.Position = UDim2.new(0, 22, 0.5, -36)
-toggle.BackgroundColor3 = Color3.fromRGB(20, 16, 30)
-toggle.Image = AVATAR_IMAGE
-toggle.ScaleType = Enum.ScaleType.Crop
-toggle.Parent = gui
-corner(toggle, 36)
-stroke(toggle, 3)
-
--- Main menu
 local main = Instance.new("Frame")
 main.Name = "Main"
-main.Size = UDim2.fromOffset(520, 390)
-main.Position = UDim2.new(0.5, -260, 0.5, -195)
+main.Size = UDim2.fromOffset(560, 420)
+main.Position = UDim2.new(0.5, -280, 0.5, -210)
 main.BackgroundColor3 = Color3.fromRGB(13, 12, 19)
 main.Visible = false
 main.Parent = gui
 corner(main, 18)
 stroke(main, 2)
 
-local scale = Instance.new("UIScale")
-scale.Scale = Settings.MenuScale
-scale.Parent = main
+local menuScale = Instance.new("UIScale")
+menuScale.Scale = Settings.MenuScale
+menuScale.Parent = main
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 54)
+header.BackgroundTransparency = 1
+header.Parent = main
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -70, 0, 48)
-title.Position = UDim2.fromOffset(18, 4)
+title.Size = UDim2.new(1, -110, 0, 28)
+title.Position = UDim2.fromOffset(18, 8)
 title.BackgroundTransparency = 1
 title.Text = "HOÀI HUB"
 title.TextColor3 = Color3.fromRGB(205, 145, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 22
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = main
+title.Parent = header
 
-local version = Instance.new("TextLabel")
-version.Size = UDim2.new(1, -80, 0, 20)
-version.Position = UDim2.fromOffset(20, 34)
-version.BackgroundTransparency = 1
-version.Text = "ADMIN / TEST • v1.0"
-version.TextColor3 = Color3.fromRGB(150, 145, 165)
-version.Font = Enum.Font.Gotham
-version.TextSize = 10
-version.TextXAlignment = Enum.TextXAlignment.Left
-version.Parent = main
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(1, -110, 0, 18)
+subtitle.Position = UDim2.fromOffset(18, 31)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "BẤM × ĐỂ ẨN MENU - BẤM ẢNH ĐỂ HIỆN LẠI"
+subtitle.TextColor3 = Color3.fromRGB(150, 145, 165)
+subtitle.Font = Enum.Font.Gotham
+subtitle.TextSize = 10
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.Parent = header
 
-local close = Instance.new("TextButton")
-close.Size = UDim2.fromOffset(38, 38)
-close.Position = UDim2.new(1, -48, 0, 8)
-close.BackgroundColor3 = Color3.fromRGB(35, 28, 45)
-close.Text = "×"
-close.TextColor3 = Color3.new(1, 1, 1)
-close.Font = Enum.Font.GothamBold
-close.TextSize = 22
-close.Parent = main
-corner(close, 10)
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.fromOffset(38, 38)
+closeButton.Position = UDim2.new(1, -48, 0, 8)
+closeButton.BackgroundColor3 = Color3.fromRGB(35, 28, 45)
+closeButton.Text = "×"
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 22
+closeButton.Parent = header
+corner(closeButton, 10)
 
--- Sidebar
 local sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.fromOffset(125, 320)
+sidebar.Size = UDim2.fromOffset(126, 350)
 sidebar.Position = UDim2.fromOffset(12, 58)
 sidebar.BackgroundColor3 = Color3.fromRGB(20, 18, 28)
 sidebar.Parent = main
@@ -131,304 +242,513 @@ sidePad.PaddingTop = UDim.new(0, 10)
 sidePad.Parent = sidebar
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -155, 1, -70)
-content.Position = UDim2.fromOffset(145, 58)
+content.Size = UDim2.new(1, -156, 1, -70)
+content.Position = UDim2.fromOffset(146, 58)
 content.BackgroundTransparency = 1
 content.Parent = main
 
 local pages = {}
+local tabs = {}
 
 local function makePage(name)
-    local page = Instance.new("ScrollingFrame")
-    page.Name = name
-    page.Size = UDim2.fromScale(1, 1)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 3
-    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    page.Visible = false
-    page.Parent = content
+	local page = Instance.new("ScrollingFrame")
+	page.Name = name
+	page.Size = UDim2.fromScale(1, 1)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.ScrollBarThickness = 3
+	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	page.CanvasSize = UDim2.new()
+	page.Visible = false
+	page.Parent = content
 
-    local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 8)
-    layout.Parent = page
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 8)
+	layout.Parent = page
 
-    pages[name] = page
-    return page
+	pages[name] = page
+	return page
+end
+
+local function makeTab(text, pageName, order)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.fromOffset(108, 34)
+	b.Position = UDim2.fromOffset(0, 0)
+	b.BackgroundColor3 = Color3.fromRGB(30, 27, 39)
+	b.Text = text
+	b.TextColor3 = Color3.new(1, 1, 1)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 11
+	b.Parent = sidebar
+	b.LayoutOrder = order
+	corner(b, 9)
+
+	tabs[pageName] = b
+	b.Activated:Connect(function()
+		for name, page in pairs(pages) do
+			page.Visible = (name == pageName)
+		end
+		for name, btn in pairs(tabs) do
+			btn.BackgroundColor3 = (name == pageName)
+				and Color3.fromRGB(95, 45, 150)
+				or Color3.fromRGB(30, 27, 39)
+		end
+	end)
 end
 
 local home = makePage("Home")
-local move = makePage("Move")
-local visual = makePage("Visual")
-local settingsPage = makePage("Settings")
+local playerPage = makePage("Player")
+local movePage = makePage("Move")
+local combatPage = makePage("Combat")
+local visualPage = makePage("Visual")
+local settingPage = makePage("Setting")
 
-local tabs = {}
+makeTab("HOME", "Home", 1)
+makeTab("PLAYER", "Player", 2)
+makeTab("MOVE", "Move", 3)
+makeTab("COMBAT", "Combat", 4)
+makeTab("VISUAL", "Visual", 5)
+makeTab("SETTING", "Setting", 6)
 
-local function showPage(name)
-    for pageName, page in pairs(pages) do
-        page.Visible = pageName == name
-    end
-    for tabName, button in pairs(tabs) do
-        button.BackgroundColor3 =
-            tabName == name
-            and Color3.fromRGB(95, 45, 150)
-            or Color3.fromRGB(30, 27, 39)
-    end
-end
-
-local function makeTab(text, pageName)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(108, 34)
-    b.BackgroundColor3 = Color3.fromRGB(30, 27, 39)
-    b.Text = text
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 11
-    b.Parent = sidebar
-    corner(b, 9)
-    tabs[pageName] = b
-    b.Activated:Connect(function()
-        showPage(pageName)
-    end)
-end
-
-makeTab("HOME", "Home")
-makeTab("MOVE", "Move")
-makeTab("VISUAL", "Visual")
-makeTab("SETTING", "Settings")
-
-local function label(parent, text)
-    local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(1, -8, 0, 32)
-    l.BackgroundColor3 = Color3.fromRGB(25, 23, 33)
-    l.Text = text
-    l.TextColor3 = Color3.new(1, 1, 1)
-    l.Font = Enum.Font.Gotham
-    l.TextSize = 11
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    l.Parent = parent
-    corner(l, 9)
-    return l
-end
-
-local function button(parent, text, callback)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, -8, 0, 38)
-    b.BackgroundColor3 = Color3.fromRGB(31, 28, 40)
-    b.Text = text .. " [OFF]"
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 11
-    b.Parent = parent
-    corner(b, 9)
-
-    local on = false
-    b.Activated:Connect(function()
-        on = not on
-        b.Text = text .. (on and " [ON]" or " [OFF]")
-        b.BackgroundColor3 = on
-            and Color3.fromRGB(92, 45, 150)
-            or Color3.fromRGB(31, 28, 40)
-        callback(on)
-    end)
-    return b
-end
-
-local function numberBox(parent, titleText, value, callback)
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(1, -8, 0, 38)
-    box.BackgroundColor3 = Color3.fromRGB(31, 28, 40)
-    box.Text = tostring(value)
-    box.PlaceholderText = titleText
-    box.TextColor3 = Color3.new(1, 1, 1)
-    box.Font = Enum.Font.Gotham
-    box.TextSize = 11
-    box.ClearTextOnFocus = false
-    box.Parent = parent
-    corner(box, 9)
-
-    box.FocusLost:Connect(function()
-        local n = tonumber(box.Text)
-        if n then
-            callback(n)
-        else
-            box.Text = tostring(value)
-        end
-    end)
-    return box
-end
-
--- Home
-label(home, "Welcome, " .. player.DisplayName)
-label(home, "Hoài Hub • Admin / Test UI")
-label(home, "Menu toggle: bấm avatar tròn để mở lại")
-
--- Move
-button(move, "FLY", function(on)
-    Settings.Fly = on
-end)
-
-numberBox(move, "Fly Speed", Settings.FlySpeed, function(v)
-    Settings.FlySpeed = math.clamp(v, 10, 300)
-end)
-
-button(move, "SPEED", function(on)
-    Settings.Speed = on
-end)
-
-numberBox(move, "Walk Speed", Settings.WalkSpeed, function(v)
-    Settings.WalkSpeed = math.clamp(v, 1, 200)
-end)
-
-button(move, "JUMP", function(on)
-    Settings.Jump = on
-end)
-
-numberBox(move, "Jump Power", Settings.JumpPower, function(v)
-    Settings.JumpPower = math.clamp(v, 1, 200)
-end)
-
-button(move, "NOCLIP", function(on)
-    Settings.NoClip = on
-end)
-
--- Visual
-button(visual, "ESP", function(on)
-    Settings.ESP = on
-end)
-
-button(visual, "REMOVE EFFECTS", function(on)
-    Settings.RemoveEffects = on
-end)
-
--- Settings
-numberBox(settingsPage, "Menu Scale (0.6 - 1.5)", Settings.MenuScale, function(v)
-    Settings.MenuScale = math.clamp(v, 0.6, 1.5)
-    scale.Scale = Settings.MenuScale
-end)
-
-label(settingsPage, "Avatar ID: 96252137987835")
-label(settingsPage, "Dùng trong game Roblox của bạn / Studio")
+pages.Home.Visible = true
+tabs.Home.BackgroundColor3 = Color3.fromRGB(95, 45, 150)
 
 --==================================================
--- Toggle + Drag
+-- HOME PAGE
 --==================================================
 
-toggle.Activated:Connect(function()
-    main.Visible = not main.Visible
-end)
-
-close.Activated:Connect(function()
-    main.Visible = false
-end)
-
-local function makeDraggable(handle, object)
-    local dragging = false
-    local startInput
-    local startPos
-
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            startInput = input.Position
-            startPos = object.Position
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
-            local delta = input.Position - startInput
-            object.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-end
-
-makeDraggable(title, main)
-makeDraggable(toggle, toggle)
+createLabel(home, "Welcome, " .. player.DisplayName, 38)
+local fpsPingLabel = createLabel(home, "FPS: --   |   Ping: -- ms", 38)
+local info1 = createLabel(home, "Hoài Hub • Studio / Admin Test UI", 38)
+local info2 = createLabel(home, "Dùng cho game Roblox của chính bạn", 38)
+local aimNowLabel = createLabel(home, "Aim Target: NONE", 38)
 
 --==================================================
--- Runtime admin/test movement
+-- PLAYER PAGE
 --==================================================
 
-local bodyVelocity
+createLabel(playerPage, "Chọn người chơi để teleport", 38)
+local selectedPlayerLabel = createLabel(playerPage, "Selected: NONE", 38)
 
-local function getCharacter()
-    return player.Character
+local playerList = Instance.new("ScrollingFrame")
+playerList.Size = UDim2.new(1, -8, 0, 170)
+playerList.BackgroundColor3 = Color3.fromRGB(25, 23, 33)
+playerList.BorderSizePixel = 0
+playerList.ScrollBarThickness = 3
+playerList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+playerList.CanvasSize = UDim2.new()
+playerList.Parent = playerPage
+corner(playerList, 9)
+
+local playerListLayout = Instance.new("UIListLayout")
+playerListLayout.Padding = UDim.new(0, 5)
+playerListLayout.Parent = playerList
+
+local selectedPlayer = nil
+
+local function refreshPlayerList()
+	for _, child in ipairs(playerList:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= player then
+			local b = Instance.new("TextButton")
+			b.Size = UDim2.new(1, -8, 0, 32)
+			b.BackgroundColor3 = Color3.fromRGB(35, 31, 45)
+			b.Text = plr.DisplayName .. "  @" .. plr.Name
+			b.TextColor3 = Color3.new(1, 1, 1)
+			b.Font = Enum.Font.Gotham
+			b.TextSize = 10
+			b.Parent = playerList
+			corner(b, 8)
+
+			b.Activated:Connect(function()
+				selectedPlayer = plr
+				selectedPlayerLabel.Text = "Selected: " .. plr.DisplayName .. "  @" .. plr.Name
+			end)
+		end
+	end
 end
 
-local function getRoot()
-    local c = getCharacter()
-    return c and c:FindFirstChild("HumanoidRootPart")
+local refreshListButton = Instance.new("TextButton")
+refreshListButton.Size = UDim2.new(1, -8, 0, 34)
+refreshListButton.BackgroundColor3 = Color3.fromRGB(31, 28, 40)
+refreshListButton.Text = "REFRESH PLAYER LIST"
+refreshListButton.TextColor3 = Color3.new(1, 1, 1)
+refreshListButton.Font = Enum.Font.GothamBold
+refreshListButton.TextSize = 10
+refreshListButton.Parent = playerPage
+corner(refreshListButton, 8)
+
+local tpButton = Instance.new("TextButton")
+tpButton.Size = UDim2.new(1, -8, 0, 38)
+tpButton.BackgroundColor3 = Color3.fromRGB(92, 45, 150)
+tpButton.Text = "TELEPORT TO SELECTED PLAYER"
+tpButton.TextColor3 = Color3.new(1, 1, 1)
+tpButton.Font = Enum.Font.GothamBold
+tpButton.TextSize = 10
+tpButton.Parent = playerPage
+corner(tpButton, 9)
+
+local function teleportToSelected()
+	if not selectedPlayer then
+		return
+	end
+
+	local myChar = getCharacter()
+	local targetChar = selectedPlayer.Character
+	if not myChar or not targetChar then
+		return
+	end
+
+	local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+	if not targetRoot then
+		return
+	end
+
+	myChar:PivotTo(targetRoot.CFrame * CFrame.new(0, 0, 4))
 end
 
-local function getHumanoid()
-    local c = getCharacter()
-    return c and c:FindFirstChildOfClass("Humanoid")
-end
+refreshListButton.Activated:Connect(refreshPlayerList)
+tpButton.Activated:Connect(teleportToSelected)
+refreshPlayerList()
 
-RunService.Heartbeat:Connect(function()
-    local character = getCharacter()
-    local humanoid = getHumanoid()
-    local root = getRoot()
+--==================================================
+-- MOVE PAGE
+--==================================================
 
-    if humanoid then
-        humanoid.WalkSpeed = Settings.Speed and Settings.WalkSpeed or 16
-        humanoid.UseJumpPower = true
-        humanoid.JumpPower = Settings.Jump and Settings.JumpPower or 50
-    end
-
-    if Settings.NoClip and character then
-        for _, obj in ipairs(character:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                obj.CanCollide = false
-            end
-        end
-    end
-
-    if Settings.Fly and root then
-        if not bodyVelocity or bodyVelocity.Parent ~= root then
-            if bodyVelocity then bodyVelocity:Destroy() end
-            bodyVelocity = Instance.new("BodyVelocity")
-            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-            bodyVelocity.Parent = root
-        end
-
-        local camera = workspace.CurrentCamera
-        local direction = Vector3.zero
-
-        if camera then
-            local move = humanoid and humanoid.MoveDirection or Vector3.zero
-            direction = move
-        end
-
-        local vertical = 0
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vertical += 1 end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vertical -= 1 end
-
-        bodyVelocity.Velocity =
-            direction * Settings.FlySpeed
-            + Vector3.new(0, vertical * Settings.FlySpeed, 0)
-    elseif bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
+createToggle(movePage, "FLY", Settings.Fly, function(on)
+	Settings.Fly = on
 end)
 
-showPage("Home")
+createNumberBox(movePage, "Fly Speed", Settings.FlySpeed, function(v)
+	Settings.FlySpeed = math.clamp(v, 10, 300)
+end)
 
-print("Hoai Hub loaded - Studio/Admin test version")
+createToggle(movePage, "SPEED", Settings.Speed, function(on)
+	Settings.Speed = on
+end)
+
+createNumberBox(movePage, "Walk Speed", Settings.WalkSpeed, function(v)
+	Settings.WalkSpeed = math.clamp(v, 1, 200)
+end)
+
+createToggle(movePage, "JUMP", Settings.Jump, function(on)
+	Settings.Jump = on
+end)
+
+createNumberBox(movePage, "Jump Power", Settings.JumpPower, function(v)
+	Settings.JumpPower = math.clamp(v, 1, 300)
+end)
+
+createToggle(movePage, "NOCLIP", Settings.NoClip, function(on)
+	Settings.NoClip = on
+end)
+
+--==================================================
+-- COMBAT PAGE
+--==================================================
+
+createToggle(combatPage, "AIM NEAREST PLAYER", Settings.Aim, function(on)
+	Settings.Aim = on
+	if not on then
+		aimNowLabel.Text = "Aim Target: NONE"
+	end
+end)
+
+createNumberBox(combatPage, "Aim Range", Settings.AimRange, function(v)
+	Settings.AimRange = math.clamp(v, 25, 1000)
+end)
+
+createNumberBox(combatPage, "Aim Smooth", Settings.AimSmooth, function(v)
+	Settings.AimSmooth = math.clamp(v, 0.01, 1)
+end)
+
+createLabel(combatPage, "Aim tự chọn player gần nhất.", 38)
+createLabel(combatPage, "Hook weapon: _G.HoaiHubGetAimTarget()", 38)
+
+--==================================================
+-- VISUAL PAGE
+--==================================================
+
+createToggle(visualPage, "PLAYER ESP", Settings.PlayerESP, function(on)
+	Settings.PlayerESP = on
+	if not on then
+		-- clear handled by update loop
+	end
+end)
+
+createToggle(visualPage, "FIX LAG", Settings.FixLag, function(on)
+	Settings.FixLag = on
+end)
+
+createToggle(visualPage, "REMOVE EFFECTS", Settings.RemoveEffects, function(on)
+	Settings.RemoveEffects = on
+end)
+
+createLabel(visualPage, "ESP hiển thị tên, HP và khoảng cách.", 38)
+createLabel(visualPage, "Fix Lag sẽ tắt hiệu ứng thừa.", 38)
+
+--==================================================
+-- SETTING PAGE
+--==================================================
+
+createLabel(settingPage, "Menu Scale (0.6 - 1.5)", 38)
+createNumberBox(settingPage, "Menu Scale", Settings.MenuScale, function(v)
+	Settings.MenuScale = math.clamp(v, 0.6, 1.5)
+	menuScale.Scale = Settings.MenuScale
+end)
+
+createLabel(settingPage, "Avatar ID: 96252137987835", 38)
+createLabel(settingPage, "Bấm avatar để mở lại menu", 38)
+
+--==================================================
+-- PLAYER ESP
+--==================================================
+
+local playerESP = {}
+
+local function removePlayerESP(targetPlayer)
+	local data = playerESP[targetPlayer]
+	if not data then return end
+
+	if data.Highlight then data.Highlight:Destroy() end
+	if data.Billboard then data.Billboard:Destroy() end
+	playerESP[targetPlayer] = nil
+end
+
+local function ensurePlayerESP(targetPlayer)
+	if not Settings.PlayerESP then return end
+	if targetPlayer == player then return end
+
+	local character = targetPlayer.Character
+	if not character then return end
+
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid then return end
+
+	local existing = playerESP[targetPlayer]
+	if not existing then
+		local highlight = Instance.new("Highlight")
+		highlight.Name = "HoaiHubPlayerESP"
+		highlight.Adornee = character
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.FillTransparency = 0.72
+		highlight.OutlineTransparency = 0
+		highlight.Parent = character
+
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "HoaiHubPlayerInfo"
+		billboard.Adornee = root
+		billboard.Size = UDim2.fromOffset(180, 42)
+		billboard.StudsOffset = Vector3.new(0, 3.2, 0)
+		billboard.AlwaysOnTop = true
+		billboard.Parent = character
+
+		local text = Instance.new("TextLabel")
+		text.Name = "Info"
+		text.Size = UDim2.fromScale(1, 1)
+		text.BackgroundTransparency = 1
+		text.TextColor3 = Color3.new(1, 1, 1)
+		text.TextStrokeTransparency = 0.25
+		text.Font = Enum.Font.GothamBold
+		text.TextSize = 11
+		text.TextWrapped = true
+		text.Parent = billboard
+
+		playerESP[targetPlayer] = {
+			Highlight = highlight,
+			Billboard = billboard,
+			Text = text,
+		}
+	else
+		existing.Highlight.Adornee = character
+		existing.Billboard.Adornee = root
+	end
+end
+
+local function clearAllPlayerESP()
+	for targetPlayer in pairs(playerESP) do
+		removePlayerESP(targetPlayer)
+	end
+end
+
+--==================================================
+-- A I M
+--==================================================
+
+local aimEnabled = false
+local currentAimTarget = nil
+local toolConnections = {}
+
+local function disconnectToolConnections()
+	for tool, conn in pairs(toolConnections) do
+		if conn and conn.Disconnect then
+			pcall(function()
+				conn:Disconnect()
+			end)
+		end
+		toolConnections[tool] = nil
+	end
+end
+
+local function findNearestPlayer()
+	local myRoot = getRoot()
+	if not myRoot then
+		return nil, nil, math.huge
+	end
+
+	local nearestPlayer
+	local nearestRoot
+	local nearestDistance = Settings.AimRange
+
+	for _, targetPlayer in ipairs(Players:GetPlayers()) do
+		if targetPlayer ~= player then
+			local char = targetPlayer.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			if hum and root and hum.Health > 0 then
+				local distance = (myRoot.Position - root.Position).Magnitude
+				if distance < nearestDistance then
+					nearestDistance = distance
+					nearestPlayer = targetPlayer
+					nearestRoot = root
+				end
+			end
+		end
+	end
+
+	return nearestPlayer, nearestRoot, nearestDistance
+end
+
+local function updateAimTarget()
+	local targetPlayer, targetRoot, distance = findNearestPlayer()
+	currentAimTarget = targetPlayer
+
+	if targetPlayer and targetRoot then
+		aimNowLabel.Text = string.format(
+			"Aim Target: %s | %.0f studs",
+			targetPlayer.DisplayName,
+			distance
+		)
+	else
+		aimNowLabel.Text = "Aim Target: NONE"
+	end
+
+	return targetPlayer, targetRoot, distance
+end
+
+local function hookTool(tool)
+	if toolConnections[tool] or not tool:IsA("Tool") then
+		return
+	end
+
+	toolConnections[tool] = tool.Activated:Connect(function()
+		if not Settings.Aim then
+			return
+		end
+
+		local targetPlayer, targetRoot = findNearestPlayer()
+		if targetPlayer and targetRoot then
+			local camera = workspace.CurrentCamera
+			if camera then
+				camera.CFrame = CFrame.lookAt(camera.CFrame.Position, targetRoot.Position)
+			end
+			currentAimTarget = targetPlayer
+		end
+	end)
+
+	tool.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			if toolConnections[tool] then
+				pcall(function()
+					toolConnections[tool]:Disconnect()
+				end)
+			end
+			toolConnections[tool] = nil
+		end
+	end)
+end
+
+local function bindCharacterTools(character)
+	disconnectToolConnections()
+
+	for _, child in ipairs(character:GetChildren()) do
+		hookTool(child)
+	end
+
+	character.ChildAdded:Connect(function(child)
+		hookTool(child)
+	end)
+end
+
+local function onCharacterAdded(character)
+	bindCharacterTools(character)
+	task.defer(function()
+		refreshPlayerList()
+		if Settings.PlayerESP then
+			ensurePlayerESP(player)
+		end
+	end)
+end
+
+if player.Character then
+	onCharacterAdded(player.Character)
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+
+_G.HoaiHubGetAimTarget = function()
+	if not Settings.Aim then
+		return nil
+	end
+
+	local targetPlayer, targetRoot, distance = findNearestPlayer()
+	if not targetPlayer or not targetRoot then
+		return nil
+	end
+
+	return {
+		Player = targetPlayer,
+		Character = targetPlayer.Character,
+		Root = targetRoot,
+		Position = targetRoot.Position,
+		Distance = distance,
+	}
+end
+
+--==================================================
+-- OPTIMIZE / FIX LAG
+--==================================================
+
+local savedEffects = {}
+local savedLighting = {}
+local optimizeApplied = false
+
+local function rememberAndDisable(obj, backupTable)
+	if backupTable[obj] == nil then
+		backupTable[obj] = obj.Enabled
+	end
+	obj.Enabled = false
+end
+
+local function applyOptimize()
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("ParticleEmitter")
+			or obj:IsA("Trail")
+			or obj:IsA("Beam")
+			or obj:IsA("Smoke")
+			or obj:IsA("Fire")
+			or obj:IsA("Sparkles") then
+			rememberAndDisable(obj, savedEffects)
+		end
+	end
+
+	for _, obj in ipairs(Lighting:GetDescendants()) do
+		if obj:IsA("PostEffect") then
+			if savedLighting[obj] == nil then
+				savedLighting[obj] = obj.Enabled
