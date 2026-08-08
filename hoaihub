@@ -1,14 +1,12 @@
 --========================================================--
 -- HOAI HUB - PART 1/4
--- Core + UI + Logo + Tab System
--- Đặt toàn bộ code vào 1 LocalScript trong StarterPlayerScripts
+-- Core + UI + Logo + Tabs
+-- Roblox Studio / LocalScript
 --========================================================--
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local Teams = game:GetService("Teams")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -20,10 +18,12 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local CONFIG = {
     Name = "Hoài Làm Script",
     Version = "1.0",
+
+    LogoAsset = "rbxassetid://72452612212910",
+
     DefaultWalkSpeed = 16,
     DefaultJumpPower = 50,
     DefaultFOV = 70,
-    UIScale = 0.85,
 
     Colors = {
         Background = Color3.fromRGB(15, 15, 20),
@@ -32,9 +32,7 @@ local CONFIG = {
         Button = Color3.fromRGB(38, 38, 50),
         Accent = Color3.fromRGB(90, 120, 255),
         Text = Color3.fromRGB(245, 245, 250),
-        SubText = Color3.fromRGB(165, 165, 180),
-        Success = Color3.fromRGB(80, 210, 130),
-        Danger = Color3.fromRGB(230, 80, 90)
+        SubText = Color3.fromRGB(165, 165, 180)
     }
 }
 
@@ -44,9 +42,9 @@ local CONFIG = {
 
 local State = {
     CurrentTab = "Movement",
-    Theme = "Dark",
+
     UIVisible = true,
-    UIScale = CONFIG.UIScale,
+    UIScale = 0.85,
 
     SpeedEnabled = false,
     Speed = 16,
@@ -69,17 +67,20 @@ local State = {
     ESPPlayer = false,
     ESPNPC = false,
 
-    FOV = CONFIG.DefaultFOV,
-    Invisible = false
+    FOV = 70,
+    Invisible = false,
+
+    Theme = "Dark"
 }
 
 --========================================================--
--- CLEAN OLD UI
+-- CLEAN OLD GUI
 --========================================================--
 
-local OldUI = PlayerGui:FindFirstChild("HoaiHub")
-if OldUI then
-    OldUI:Destroy()
+local OldGui = PlayerGui:FindFirstChild("HoaiHub")
+
+if OldGui then
+    OldGui:Destroy()
 end
 
 --========================================================--
@@ -94,21 +95,28 @@ local function Create(className, properties, parent)
     end
 
     object.Parent = parent
+
     return object
 end
 
 local function AddCorner(object, radius)
-    return Create("UICorner", {
-        CornerRadius = UDim.new(0, radius or 8)
-    }, object)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = object
+
+    return corner
 end
 
 local function AddStroke(object, color, transparency)
-    return Create("UIStroke", {
-        Color = color or CONFIG.Colors.Accent,
-        Transparency = transparency or 0.5,
-        Thickness = 1
-    }, object)
+    local stroke = Instance.new("UIStroke")
+
+    stroke.Color = color or CONFIG.Colors.Accent
+    stroke.Transparency = transparency or 0.5
+    stroke.Thickness = 1
+
+    stroke.Parent = object
+
+    return stroke
 end
 
 local function Tween(object, properties, duration)
@@ -118,11 +126,16 @@ local function Tween(object, properties, duration)
 
     local tween = TweenService:Create(
         object,
-        TweenInfo.new(duration or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        TweenInfo.new(
+            duration or 0.2,
+            Enum.EasingStyle.Quad,
+            Enum.EasingDirection.Out
+        ),
         properties
     )
 
     tween:Play()
+
     return tween
 end
 
@@ -143,11 +156,17 @@ local ScreenGui = Create("ScreenGui", {
 
 local MainWindow = Create("Frame", {
     Name = "MainWindow",
+
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.fromScale(0.5, 0.5),
+
     Size = UDim2.fromOffset(700, 430),
+
     BackgroundColor3 = CONFIG.Colors.Background,
-    BorderSizePixel = 0
+    BorderSizePixel = 0,
+
+    Visible = true,
+    ZIndex = 10
 }, ScreenGui)
 
 AddCorner(MainWindow, 14)
@@ -157,7 +176,7 @@ AddStroke(MainWindow, CONFIG.Colors.Accent, 0.65)
 -- UI SCALE
 --========================================================--
 
-local Scale = Create("UIScale", {
+local UIScale = Create("UIScale", {
     Scale = State.UIScale
 }, MainWindow)
 
@@ -167,85 +186,131 @@ local Scale = Create("UIScale", {
 
 local Header = Create("Frame", {
     Name = "Header",
+
     Size = UDim2.new(1, 0, 0, 58),
+
     BackgroundColor3 = CONFIG.Colors.Secondary,
-    BorderSizePixel = 0
+    BorderSizePixel = 0,
+
+    ZIndex = 11
 }, MainWindow)
 
 AddCorner(Header, 14)
 
--- Logo
-local Logo = Create("Frame", {
-    Name = "Logo",
-    Position = UDim2.fromOffset(12, 10),
-    Size = UDim2.fromOffset(38, 38),
-    BackgroundColor3 = CONFIG.Colors.Accent,
-    BorderSizePixel = 0
+--========================================================--
+-- HEADER LOGO
+--========================================================--
+
+local HeaderLogo = Create("ImageLabel", {
+    Name = "HeaderLogo",
+
+    Position = UDim2.fromOffset(12, 9),
+    Size = UDim2.fromOffset(40, 40),
+
+    BackgroundTransparency = 1,
+
+    Image = CONFIG.LogoAsset,
+    ScaleType = Enum.ScaleType.Fit,
+
+    ZIndex = 12
 }, Header)
 
-AddCorner(Logo, 10)
+AddCorner(HeaderLogo, 10)
+
+--========================================================--
+-- TITLE
+--========================================================--
 
 Create("TextLabel", {
-    BackgroundTransparency = 1,
-    Size = UDim2.fromScale(1, 1),
-    Text = "H",
-    TextColor3 = Color3.new(1, 1, 1),
-    TextSize = 22,
-    Font = Enum.Font.GothamBold
-}, Logo)
+    Name = "Title",
 
-Create("TextLabel", {
     BackgroundTransparency = 1,
+
     Position = UDim2.fromOffset(62, 7),
-    Size = UDim2.fromOffset(300, 25),
+    Size = UDim2.fromOffset(350, 25),
+
     Text = CONFIG.Name,
+
     TextColor3 = CONFIG.Colors.Text,
     TextSize = 19,
+
     TextXAlignment = Enum.TextXAlignment.Left,
-    Font = Enum.Font.GothamBold
+
+    Font = Enum.Font.GothamBold,
+
+    ZIndex = 12
 }, Header)
 
 Create("TextLabel", {
+    Name = "Version",
+
     BackgroundTransparency = 1,
+
     Position = UDim2.fromOffset(62, 31),
     Size = UDim2.fromOffset(250, 18),
+
     Text = "v" .. CONFIG.Version,
+
     TextColor3 = CONFIG.Colors.SubText,
     TextSize = 11,
+
     TextXAlignment = Enum.TextXAlignment.Left,
-    Font = Enum.Font.Gotham
+
+    Font = Enum.Font.Gotham,
+
+    ZIndex = 12
 }, Header)
 
 --========================================================--
--- CLOSE / MINIMIZE
+-- MINIMIZE
 --========================================================--
 
 local Minimize = Create("TextButton", {
     Name = "Minimize",
+
     AnchorPoint = Vector2.new(1, 0.5),
     Position = UDim2.new(1, -48, 0.5, 0),
+
     Size = UDim2.fromOffset(30, 30),
+
     BackgroundColor3 = CONFIG.Colors.Button,
+
     Text = "—",
     TextColor3 = CONFIG.Colors.Text,
     TextSize = 18,
+
     Font = Enum.Font.GothamBold,
-    AutoButtonColor = false
+
+    AutoButtonColor = false,
+
+    ZIndex = 20
 }, Header)
 
 AddCorner(Minimize, 8)
 
+--========================================================--
+-- CLOSE
+--========================================================--
+
 local Close = Create("TextButton", {
     Name = "Close",
+
     AnchorPoint = Vector2.new(1, 0.5),
     Position = UDim2.new(1, -10, 0.5, 0),
+
     Size = UDim2.fromOffset(30, 30),
+
     BackgroundColor3 = CONFIG.Colors.Button,
+
     Text = "×",
     TextColor3 = CONFIG.Colors.Text,
     TextSize = 20,
+
     Font = Enum.Font.GothamBold,
-    AutoButtonColor = false
+
+    AutoButtonColor = false,
+
+    ZIndex = 20
 }, Header)
 
 AddCorner(Close, 8)
@@ -256,10 +321,15 @@ AddCorner(Close, 8)
 
 local Sidebar = Create("Frame", {
     Name = "Sidebar",
+
     Position = UDim2.fromOffset(10, 68),
+
     Size = UDim2.new(0, 145, 1, -78),
+
     BackgroundColor3 = CONFIG.Colors.Secondary,
-    BorderSizePixel = 0
+    BorderSizePixel = 0,
+
+    ZIndex = 11
 }, MainWindow)
 
 AddCorner(Sidebar, 10)
@@ -275,18 +345,27 @@ local TabLayout = Create("UIListLayout", {
     SortOrder = Enum.SortOrder.LayoutOrder
 }, Sidebar)
 
+--========================================================--
+-- CONTENT
+--========================================================--
+
 local Content = Create("Frame", {
     Name = "Content",
+
     Position = UDim2.fromOffset(165, 68),
+
     Size = UDim2.new(1, -175, 1, -78),
+
     BackgroundColor3 = CONFIG.Colors.Secondary,
-    BorderSizePixel = 0
+    BorderSizePixel = 0,
+
+    ZIndex = 11
 }, MainWindow)
 
 AddCorner(Content, 10)
 
 --========================================================--
--- TAB SYSTEM
+-- TABS
 --========================================================--
 
 local Tabs = {}
@@ -295,27 +374,45 @@ local TabButtons = {}
 local function CreateTab(tabName)
     local button = Create("TextButton", {
         Name = tabName .. "Button",
+
         Size = UDim2.new(1, 0, 0, 42),
+
         BackgroundColor3 = CONFIG.Colors.Button,
+
         Text = tabName,
+
         TextColor3 = CONFIG.Colors.SubText,
         TextSize = 13,
+
         Font = Enum.Font.GothamSemibold,
-        AutoButtonColor = false
+
+        AutoButtonColor = false,
+
+        ZIndex = 15
     }, Sidebar)
 
     AddCorner(button, 8)
 
     local page = Create("ScrollingFrame", {
         Name = tabName .. "Page",
+
         Size = UDim2.fromScale(1, 1),
+
         BackgroundTransparency = 1,
+
         BorderSizePixel = 0,
+
         ScrollBarThickness = 4,
+
         ScrollBarImageColor3 = CONFIG.Colors.Accent,
+
         CanvasSize = UDim2.new(0, 0, 0, 0),
+
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
-        Visible = false
+
+        Visible = false,
+
+        ZIndex = 12
     }, Content)
 
     Create("UIPadding", {
@@ -335,11 +432,13 @@ local function CreateTab(tabName)
 
     button.MouseButton1Click:Connect(function()
         for name, tab in pairs(Tabs) do
-            tab.Visible = name == tabName
+            local selected = name == tabName
+
+            tab.Visible = selected
 
             local tabButton = TabButtons[name]
 
-            if name == tabName then
+            if selected then
                 Tween(tabButton, {
                     BackgroundColor3 = CONFIG.Colors.Accent,
                     TextColor3 = Color3.new(1, 1, 1)
@@ -368,13 +467,15 @@ local SettingsPage = CreateTab("Settings")
 --========================================================--
 
 Tabs.Movement.Visible = true
-Tween(TabButtons.Movement, {
-    BackgroundColor3 = CONFIG.Colors.Accent,
-    TextColor3 = Color3.new(1, 1, 1)
-}, 0)
+
+TabButtons.Movement.BackgroundColor3 =
+    CONFIG.Colors.Accent
+
+TabButtons.Movement.TextColor3 =
+    Color3.new(1, 1, 1)
 
 --========================================================--
--- DRAG SYSTEM
+-- MAIN WINDOW DRAG
 --========================================================--
 
 local dragging = false
@@ -386,6 +487,7 @@ Header.InputBegan:Connect(function(input)
         or input.UserInputType == Enum.UserInputType.Touch then
 
         dragging = true
+
         dragStart = input.Position
         startPosition = MainWindow.Position
 
@@ -410,6 +512,7 @@ UserInputService.InputChanged:Connect(function(input)
         MainWindow.Position = UDim2.new(
             startPosition.X.Scale,
             startPosition.X.Offset + delta.X,
+
             startPosition.Y.Scale,
             startPosition.Y.Offset + delta.Y
         )
@@ -437,13 +540,121 @@ Minimize.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
--- CLOSE / REOPEN
+-- FLOATING LOGO
 --========================================================--
 
-Close.MouseButton1Click:Connect(function()
-    State.UIVisible = false
-    MainWindow.Visible = false
+local FloatingLogo = Create("ImageButton", {
+    Name = "FloatingLogo",
+
+    AnchorPoint = Vector2.new(0, 0),
+
+    Position = UDim2.fromOffset(18, 18),
+
+    Size = UDim2.fromOffset(56, 56),
+
+    BackgroundColor3 = CONFIG.Colors.Accent,
+
+    BorderSizePixel = 0,
+
+    Image = CONFIG.LogoAsset,
+
+    ScaleType = Enum.ScaleType.Fit,
+
+    AutoButtonColor = false,
+
+    Visible = true,
+
+    ZIndex = 100
+}, ScreenGui)
+
+AddCorner(FloatingLogo, 14)
+AddStroke(FloatingLogo, Color3.new(1, 1, 1), 0.7)
+
+--========================================================--
+-- FLOATING LOGO DRAG
+--========================================================--
+
+local logoDragging = false
+local logoDragStart
+local logoStartPosition
+local logoMoved = false
+
+FloatingLogo.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        logoDragging = true
+        logoMoved = false
+
+        logoDragStart = input.Position
+        logoStartPosition = FloatingLogo.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                logoDragging = false
+            end
+        end)
+    end
 end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not logoDragging then
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        local delta = input.Position - logoDragStart
+
+        if math.abs(delta.X) > 5
+            or math.abs(delta.Y) > 5 then
+            logoMoved = true
+        end
+
+        FloatingLogo.Position = UDim2.new(
+            logoStartPosition.X.Scale,
+            logoStartPosition.X.Offset + delta.X,
+
+            logoStartPosition.Y.Scale,
+            logoStartPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+--========================================================--
+-- OPEN / CLOSE MENU
+--========================================================--
+
+local menuOpen = true
+
+local function SetMenuVisible(visible)
+    menuOpen = visible
+
+    State.UIVisible = visible
+
+    MainWindow.Visible = visible
+
+    -- Logo luôn tồn tại
+    FloatingLogo.Visible = true
+end
+
+FloatingLogo.MouseButton1Click:Connect(function()
+    -- Nếu người dùng vừa kéo logo thì không toggle
+    if logoMoved then
+        return
+    end
+
+    SetMenuVisible(not menuOpen)
+end)
+
+Close.MouseButton1Click:Connect(function()
+    SetMenuVisible(false)
+end)
+
+--========================================================--
+-- RIGHT CONTROL
+--========================================================--
 
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then
@@ -451,27 +662,57 @@ UserInputService.InputBegan:Connect(function(input, processed)
     end
 
     if input.KeyCode == Enum.KeyCode.RightControl then
-        State.UIVisible = not State.UIVisible
-        MainWindow.Visible = State.UIVisible
+        SetMenuVisible(not menuOpen)
     end
 end)
 
 --========================================================--
+-- LOGO HOVER
+--========================================================--
+
+FloatingLogo.MouseEnter:Connect(function()
+    Tween(FloatingLogo, {
+        Size = UDim2.fromOffset(62, 62)
+    }, 0.12)
+end)
+
+FloatingLogo.MouseLeave:Connect(function()
+    Tween(FloatingLogo, {
+        Size = UDim2.fromOffset(56, 56)
+    }, 0.12)
+end)
+
+--========================================================--
 -- PUBLIC REFERENCES
+-- PART 2/3/4 SỬ DỤNG CÁC BIẾN NÀY
 --========================================================--
 
 _G.HoaiHub = {
     ScreenGui = ScreenGui,
+
     MainWindow = MainWindow,
+
+    FloatingLogo = FloatingLogo,
+
+    Header = Header,
+    Sidebar = Sidebar,
     Content = Content,
+
     Tabs = Tabs,
     TabButtons = TabButtons,
+
+    MovementPage = MovementPage,
+    AimPage = AimPage,
+    TeleportPage = TeleportPage,
+    SettingsPage = SettingsPage,
+
+    UIScale = UIScale,
+
     State = State,
     CONFIG = CONFIG
 }
 
-print("[Hoai Hub] Part 1 loaded successfully.")
-
+print("[Hoai Hub] PART 1/4 loaded successfully.")
 --========================================================--
 -- HOAI HUB - PART 2/4
 -- Movement: Speed / Jump / Fly / NoClip
