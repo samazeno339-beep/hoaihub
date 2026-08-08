@@ -1472,3 +1472,133 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	invisibleState[player] = nil
 end)
+--==================================================
+-- HOAI HUB - PART 4/4
+-- INVISIBLE / SERVER SYNC
+--==================================================
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local H = _G.HoaiHub
+
+if not H then
+	warn("HoaiHub: Part 1/2 chưa được chạy.")
+	return
+end
+
+H.Settings.Invisible = H.Settings.Invisible or false
+
+local invisibleRemote =
+	ReplicatedStorage:WaitForChild(
+		"HoaiInvisibleEvent",
+		10
+	)
+
+--==================================================
+-- INVISIBLE FUNCTION
+--==================================================
+
+local function setInvisible(enabled)
+	H.Settings.Invisible = enabled
+
+	if invisibleRemote then
+		invisibleRemote:FireServer(enabled)
+	end
+end
+
+--==================================================
+-- TÌM TRANG VISUAL
+--==================================================
+
+local visualPage = H.Pages and H.Pages.Visual
+
+if visualPage then
+
+	local invisibleButton = Instance.new("TextButton")
+
+	invisibleButton.Name = "InvisibleButton"
+	invisibleButton.Size =
+		UDim2.new(1, -8, 0, 38)
+
+	invisibleButton.BackgroundColor3 =
+		Color3.fromRGB(31, 28, 40)
+
+	invisibleButton.Text =
+		"INVISIBLE [OFF]"
+
+	invisibleButton.TextColor3 =
+		Color3.new(1, 1, 1)
+
+	invisibleButton.Font =
+		Enum.Font.GothamBold
+
+	invisibleButton.TextSize = 11
+
+	invisibleButton.Parent =
+		visualPage
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius =
+		UDim.new(0, 9)
+
+	corner.Parent =
+		invisibleButton
+
+	local function updateButton()
+
+		if H.Settings.Invisible then
+
+			invisibleButton.Text =
+				"INVISIBLE [ON]"
+
+			invisibleButton.BackgroundColor3 =
+				Color3.fromRGB(92, 45, 150)
+
+		else
+
+			invisibleButton.Text =
+				"INVISIBLE [OFF]"
+
+			invisibleButton.BackgroundColor3 =
+				Color3.fromRGB(31, 28, 40)
+
+		end
+	end
+
+	invisibleButton.Activated:Connect(function()
+
+		setInvisible(
+			not H.Settings.Invisible
+		)
+
+		updateButton()
+
+	end)
+
+	updateButton()
+
+else
+
+	warn(
+		"HoaiHub: Không tìm thấy trang Visual."
+	)
+
+end
+
+--==================================================
+-- RESPAWN SYNC
+--==================================================
+
+Players.LocalPlayer.CharacterAdded:Connect(function()
+
+	task.wait(0.7)
+
+	if H.Settings.Invisible then
+
+		setInvisible(true)
+
+	end
+
+end)
+
+print("Hoai Hub Part 4 - Invisible loaded")
