@@ -1,1 +1,1667 @@
+--========================================================--
+-- HOAI HUB - PART 1/4
+-- Core + UI + Logo + Tab System
+-- Đặt toàn bộ code vào 1 LocalScript trong StarterPlayerScripts
+--========================================================--
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Teams = game:GetService("Teams")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+--========================================================--
+-- CONFIG
+--========================================================--
+
+local CONFIG = {
+    Name = "Hoài Làm Script",
+    Version = "1.0",
+    DefaultWalkSpeed = 16,
+    DefaultJumpPower = 50,
+    DefaultFOV = 70,
+    UIScale = 0.85,
+
+    Colors = {
+        Background = Color3.fromRGB(15, 15, 20),
+        Secondary = Color3.fromRGB(22, 22, 30),
+        Panel = Color3.fromRGB(28, 28, 38),
+        Button = Color3.fromRGB(38, 38, 50),
+        Accent = Color3.fromRGB(90, 120, 255),
+        Text = Color3.fromRGB(245, 245, 250),
+        SubText = Color3.fromRGB(165, 165, 180),
+        Success = Color3.fromRGB(80, 210, 130),
+        Danger = Color3.fromRGB(230, 80, 90)
+    }
+}
+
+--========================================================--
+-- STATE
+--========================================================--
+
+local State = {
+    CurrentTab = "Movement",
+    Theme = "Dark",
+    UIVisible = true,
+    UIScale = CONFIG.UIScale,
+
+    SpeedEnabled = false,
+    Speed = 16,
+
+    JumpEnabled = false,
+    JumpPower = 50,
+
+    FlyEnabled = false,
+    FlySpeed = 50,
+
+    NoClipEnabled = false,
+
+    AimEnabled = false,
+    AimTarget = nil,
+    AimFOV = 120,
+    AimSmoothness = 0.15,
+    AimTeamCheck = true,
+    AimWallCheck = true,
+
+    ESPPlayer = false,
+    ESPNPC = false,
+
+    FOV = CONFIG.DefaultFOV,
+    Invisible = false
+}
+
+--========================================================--
+-- CLEAN OLD UI
+--========================================================--
+
+local OldUI = PlayerGui:FindFirstChild("HoaiHub")
+if OldUI then
+    OldUI:Destroy()
+end
+
+--========================================================--
+-- HELPERS
+--========================================================--
+
+local function Create(className, properties, parent)
+    local object = Instance.new(className)
+
+    for property, value in pairs(properties or {}) do
+        object[property] = value
+    end
+
+    object.Parent = parent
+    return object
+end
+
+local function AddCorner(object, radius)
+    return Create("UICorner", {
+        CornerRadius = UDim.new(0, radius or 8)
+    }, object)
+end
+
+local function AddStroke(object, color, transparency)
+    return Create("UIStroke", {
+        Color = color or CONFIG.Colors.Accent,
+        Transparency = transparency or 0.5,
+        Thickness = 1
+    }, object)
+end
+
+local function Tween(object, properties, duration)
+    if not object then
+        return
+    end
+
+    local tween = TweenService:Create(
+        object,
+        TweenInfo.new(duration or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        properties
+    )
+
+    tween:Play()
+    return tween
+end
+
+--========================================================--
+-- SCREEN GUI
+--========================================================--
+
+local ScreenGui = Create("ScreenGui", {
+    Name = "HoaiHub",
+    ResetOnSpawn = false,
+    IgnoreGuiInset = true,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, PlayerGui)
+
+--========================================================--
+-- MAIN WINDOW
+--========================================================--
+
+local MainWindow = Create("Frame", {
+    Name = "MainWindow",
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.fromOffset(700, 430),
+    BackgroundColor3 = CONFIG.Colors.Background,
+    BorderSizePixel = 0
+}, ScreenGui)
+
+AddCorner(MainWindow, 14)
+AddStroke(MainWindow, CONFIG.Colors.Accent, 0.65)
+
+--========================================================--
+-- UI SCALE
+--========================================================--
+
+local Scale = Create("UIScale", {
+    Scale = State.UIScale
+}, MainWindow)
+
+--========================================================--
+-- HEADER
+--========================================================--
+
+local Header = Create("Frame", {
+    Name = "Header",
+    Size = UDim2.new(1, 0, 0, 58),
+    BackgroundColor3 = CONFIG.Colors.Secondary,
+    BorderSizePixel = 0
+}, MainWindow)
+
+AddCorner(Header, 14)
+
+-- Logo
+local Logo = Create("Frame", {
+    Name = "Logo",
+    Position = UDim2.fromOffset(12, 10),
+    Size = UDim2.fromOffset(38, 38),
+    BackgroundColor3 = CONFIG.Colors.Accent,
+    BorderSizePixel = 0
+}, Header)
+
+AddCorner(Logo, 10)
+
+Create("TextLabel", {
+    BackgroundTransparency = 1,
+    Size = UDim2.fromScale(1, 1),
+    Text = "H",
+    TextColor3 = Color3.new(1, 1, 1),
+    TextSize = 22,
+    Font = Enum.Font.GothamBold
+}, Logo)
+
+Create("TextLabel", {
+    BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(62, 7),
+    Size = UDim2.fromOffset(300, 25),
+    Text = CONFIG.Name,
+    TextColor3 = CONFIG.Colors.Text,
+    TextSize = 19,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    Font = Enum.Font.GothamBold
+}, Header)
+
+Create("TextLabel", {
+    BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(62, 31),
+    Size = UDim2.fromOffset(250, 18),
+    Text = "v" .. CONFIG.Version,
+    TextColor3 = CONFIG.Colors.SubText,
+    TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    Font = Enum.Font.Gotham
+}, Header)
+
+--========================================================--
+-- CLOSE / MINIMIZE
+--========================================================--
+
+local Minimize = Create("TextButton", {
+    Name = "Minimize",
+    AnchorPoint = Vector2.new(1, 0.5),
+    Position = UDim2.new(1, -48, 0.5, 0),
+    Size = UDim2.fromOffset(30, 30),
+    BackgroundColor3 = CONFIG.Colors.Button,
+    Text = "—",
+    TextColor3 = CONFIG.Colors.Text,
+    TextSize = 18,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false
+}, Header)
+
+AddCorner(Minimize, 8)
+
+local Close = Create("TextButton", {
+    Name = "Close",
+    AnchorPoint = Vector2.new(1, 0.5),
+    Position = UDim2.new(1, -10, 0.5, 0),
+    Size = UDim2.fromOffset(30, 30),
+    BackgroundColor3 = CONFIG.Colors.Button,
+    Text = "×",
+    TextColor3 = CONFIG.Colors.Text,
+    TextSize = 20,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false
+}, Header)
+
+AddCorner(Close, 8)
+
+--========================================================--
+-- SIDEBAR
+--========================================================--
+
+local Sidebar = Create("Frame", {
+    Name = "Sidebar",
+    Position = UDim2.fromOffset(10, 68),
+    Size = UDim2.new(0, 145, 1, -78),
+    BackgroundColor3 = CONFIG.Colors.Secondary,
+    BorderSizePixel = 0
+}, MainWindow)
+
+AddCorner(Sidebar, 10)
+
+Create("UIPadding", {
+    PaddingTop = UDim.new(0, 10),
+    PaddingLeft = UDim.new(0, 8),
+    PaddingRight = UDim.new(0, 8)
+}, Sidebar)
+
+local TabLayout = Create("UIListLayout", {
+    Padding = UDim.new(0, 7),
+    SortOrder = Enum.SortOrder.LayoutOrder
+}, Sidebar)
+
+local Content = Create("Frame", {
+    Name = "Content",
+    Position = UDim2.fromOffset(165, 68),
+    Size = UDim2.new(1, -175, 1, -78),
+    BackgroundColor3 = CONFIG.Colors.Secondary,
+    BorderSizePixel = 0
+}, MainWindow)
+
+AddCorner(Content, 10)
+
+--========================================================--
+-- TAB SYSTEM
+--========================================================--
+
+local Tabs = {}
+local TabButtons = {}
+
+local function CreateTab(tabName)
+    local button = Create("TextButton", {
+        Name = tabName .. "Button",
+        Size = UDim2.new(1, 0, 0, 42),
+        BackgroundColor3 = CONFIG.Colors.Button,
+        Text = tabName,
+        TextColor3 = CONFIG.Colors.SubText,
+        TextSize = 13,
+        Font = Enum.Font.GothamSemibold,
+        AutoButtonColor = false
+    }, Sidebar)
+
+    AddCorner(button, 8)
+
+    local page = Create("ScrollingFrame", {
+        Name = tabName .. "Page",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = CONFIG.Colors.Accent,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Visible = false
+    }, Content)
+
+    Create("UIPadding", {
+        PaddingTop = UDim.new(0, 12),
+        PaddingLeft = UDim.new(0, 12),
+        PaddingRight = UDim.new(0, 12),
+        PaddingBottom = UDim.new(0, 12)
+    }, page)
+
+    Create("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    }, page)
+
+    Tabs[tabName] = page
+    TabButtons[tabName] = button
+
+    button.MouseButton1Click:Connect(function()
+        for name, tab in pairs(Tabs) do
+            tab.Visible = name == tabName
+
+            local tabButton = TabButtons[name]
+
+            if name == tabName then
+                Tween(tabButton, {
+                    BackgroundColor3 = CONFIG.Colors.Accent,
+                    TextColor3 = Color3.new(1, 1, 1)
+                }, 0.15)
+            else
+                Tween(tabButton, {
+                    BackgroundColor3 = CONFIG.Colors.Button,
+                    TextColor3 = CONFIG.Colors.SubText
+                }, 0.15)
+            end
+        end
+
+        State.CurrentTab = tabName
+    end)
+
+    return page
+end
+
+local MovementPage = CreateTab("Movement")
+local AimPage = CreateTab("Aim / ESP")
+local TeleportPage = CreateTab("Teleport")
+local SettingsPage = CreateTab("Settings")
+
+--========================================================--
+-- DEFAULT TAB
+--========================================================--
+
+Tabs.Movement.Visible = true
+Tween(TabButtons.Movement, {
+    BackgroundColor3 = CONFIG.Colors.Accent,
+    TextColor3 = Color3.new(1, 1, 1)
+}, 0)
+
+--========================================================--
+-- DRAG SYSTEM
+--========================================================--
+
+local dragging = false
+local dragStart
+local startPosition
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragging = true
+        dragStart = input.Position
+        startPosition = MainWindow.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not dragging then
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        local delta = input.Position - dragStart
+
+        MainWindow.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+--========================================================--
+-- MINIMIZE
+--========================================================--
+
+local minimized = false
+
+Minimize.MouseButton1Click:Connect(function()
+    minimized = not minimized
+
+    if minimized then
+        Tween(MainWindow, {
+            Size = UDim2.fromOffset(700, 58)
+        }, 0.2)
+    else
+        Tween(MainWindow, {
+            Size = UDim2.fromOffset(700, 430)
+        }, 0.2)
+    end
+end)
+
+--========================================================--
+-- CLOSE / REOPEN
+--========================================================--
+
+Close.MouseButton1Click:Connect(function()
+    State.UIVisible = false
+    MainWindow.Visible = false
+end)
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.RightControl then
+        State.UIVisible = not State.UIVisible
+        MainWindow.Visible = State.UIVisible
+    end
+end)
+
+--========================================================--
+-- PUBLIC REFERENCES
+--========================================================--
+
+_G.HoaiHub = {
+    ScreenGui = ScreenGui,
+    MainWindow = MainWindow,
+    Content = Content,
+    Tabs = Tabs,
+    TabButtons = TabButtons,
+    State = State,
+    CONFIG = CONFIG
+}
+
+print("[Hoai Hub] Part 1 loaded successfully.")
+
+--========================================================--
+-- HOAI HUB - PART 2/4
+-- Movement: Speed / Jump / Fly / NoClip
+--========================================================--
+
+local Character
+local Humanoid
+local RootPart
+
+local function RefreshCharacter()
+    Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+    Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    RootPart = Character:FindFirstChild("HumanoidRootPart")
+end
+
+RefreshCharacter()
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.25)
+    RefreshCharacter()
+
+    if State.SpeedEnabled and Humanoid then
+        Humanoid.WalkSpeed = State.Speed
+    end
+
+    if State.JumpEnabled and Humanoid then
+        Humanoid.JumpPower = State.JumpPower
+    end
+end)
+
+--========================================================--
+-- UI HELPERS
+--========================================================--
+
+local function MakeLabel(parent, text)
+    return Create("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = CONFIG.Colors.Text,
+        TextSize = 14,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.GothamSemibold
+    }, parent)
+end
+
+local function MakeToggle(parent, text, callback)
+    local button = Create("TextButton", {
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundColor3 = CONFIG.Colors.Button,
+        Text = text .. " : OFF",
+        TextColor3 = CONFIG.Colors.Text,
+        TextSize = 13,
+        Font = Enum.Font.GothamSemibold,
+        AutoButtonColor = false
+    }, parent)
+
+    AddCorner(button, 8)
+
+    local enabled = false
+
+    button.MouseButton1Click:Connect(function()
+        enabled = not enabled
+
+        button.Text = text .. (enabled and " : ON" or " : OFF")
+
+        Tween(button, {
+            BackgroundColor3 = enabled
+                and CONFIG.Colors.Accent
+                or CONFIG.Colors.Button
+        }, 0.12)
+
+        callback(enabled)
+    end)
+
+    return button
+end
+
+local function MakeNumberBox(parent, title, defaultValue, callback)
+    local container = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 48),
+        BackgroundTransparency = 1
+    }, parent)
+
+    Create("TextLabel", {
+        Size = UDim2.new(0.55, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = title,
+        TextColor3 = CONFIG.Colors.Text,
+        TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.Gotham
+    }, container)
+
+    local box = Create("TextBox", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = UDim2.fromOffset(120, 34),
+        BackgroundColor3 = CONFIG.Colors.Button,
+        Text = tostring(defaultValue),
+        PlaceholderText = tostring(defaultValue),
+        TextColor3 = CONFIG.Colors.Text,
+        TextSize = 13,
+        Font = Enum.Font.Gotham,
+        ClearTextOnFocus = false
+    }, container)
+
+    AddCorner(box, 7)
+
+    box.FocusLost:Connect(function()
+        local number = tonumber(box.Text)
+
+        if number then
+            callback(number)
+        else
+            box.Text = tostring(defaultValue)
+        end
+    end)
+
+    return box
+end
+
+--========================================================--
+-- MOVEMENT UI
+--========================================================--
+
+MakeLabel(MovementPage, "MOVEMENT")
+
+MakeNumberBox(
+    MovementPage,
+    "WalkSpeed",
+    16,
+    function(value)
+        State.Speed = math.clamp(value, 0, 250)
+
+        if State.SpeedEnabled and Humanoid then
+            Humanoid.WalkSpeed = State.Speed
+        end
+    end
+)
+
+MakeToggle(
+    MovementPage,
+    "Speed",
+    function(enabled)
+        State.SpeedEnabled = enabled
+
+        if Humanoid then
+            Humanoid.WalkSpeed = enabled
+                and State.Speed
+                or CONFIG.DefaultWalkSpeed
+        end
+    end
+)
+
+MakeNumberBox(
+    MovementPage,
+    "JumpPower",
+    50,
+    function(value)
+        State.JumpPower = math.clamp(value, 0, 250)
+
+        if State.JumpEnabled and Humanoid then
+            Humanoid.JumpPower = State.JumpPower
+        end
+    end
+)
+
+MakeToggle(
+    MovementPage,
+    "Jump",
+    function(enabled)
+        State.JumpEnabled = enabled
+
+        if Humanoid then
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = enabled
+                and State.JumpPower
+                or CONFIG.DefaultJumpPower
+        end
+    end
+)
+
+--========================================================--
+-- FLY
+--========================================================--
+
+MakeLabel(MovementPage, "FLY")
+
+MakeNumberBox(
+    MovementPage,
+    "Fly Speed",
+    50,
+    function(value)
+        State.FlySpeed = math.clamp(value, 1, 250)
+    end
+)
+
+local FlyButton = MakeToggle(
+    MovementPage,
+    "Fly",
+    function(enabled)
+        State.FlyEnabled = enabled
+    end
+)
+
+-- Mobile controls
+local FlyControls = Create("Frame", {
+    Name = "FlyControls",
+    AnchorPoint = Vector2.new(1, 1),
+    Position = UDim2.new(1, -15, 1, -15),
+    Size = UDim2.fromOffset(170, 110),
+    BackgroundTransparency = 1,
+    Visible = false,
+    ZIndex = 20
+}, ScreenGui)
+
+local UpButton = Create("TextButton", {
+    Position = UDim2.fromOffset(60, 0),
+    Size = UDim2.fromOffset(50, 45),
+    BackgroundColor3 = CONFIG.Colors.Accent,
+    Text = "▲",
+    TextColor3 = Color3.new(1, 1, 1),
+    TextSize = 22,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false
+}, FlyControls)
+
+AddCorner(UpButton, 10)
+
+local DownButton = Create("TextButton", {
+    Position = UDim2.fromOffset(60, 55),
+    Size = UDim2.fromOffset(50, 45),
+    BackgroundColor3 = CONFIG.Colors.Accent,
+    Text = "▼",
+    TextColor3 = Color3.new(1, 1, 1),
+    TextSize = 22,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false
+}, FlyControls)
+
+AddCorner(DownButton, 10)
+
+local upHeld = false
+local downHeld = false
+
+local function BindHold(button, setter)
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch
+            or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            setter(true)
+        end
+    end)
+
+    button.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch
+            or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            setter(false)
+        end
+    end)
+end
+
+BindHold(UpButton, function(value)
+    upHeld = value
+end)
+
+BindHold(DownButton, function(value)
+    downHeld = value
+end)
+
+-- Keyboard fly
+local keyboardUp = false
+local keyboardDown = false
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.Space then
+        keyboardUp = true
+    elseif input.KeyCode == Enum.KeyCode.LeftShift then
+        keyboardDown = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Space then
+        keyboardUp = false
+    elseif input.KeyCode == Enum.KeyCode.LeftShift then
+        keyboardDown = false
+    end
+end)
+
+--========================================================--
+-- FLY PHYSICS
+--========================================================--
+
+local FlyVelocity
+
+local function StartFly()
+    if not RootPart then
+        return
+    end
+
+    if FlyVelocity then
+        FlyVelocity:Destroy()
+    end
+
+    FlyVelocity = Instance.new("BodyVelocity")
+    FlyVelocity.Name = "HoaiFlyVelocity"
+    FlyVelocity.MaxForce = Vector3.new(
+        math.huge,
+        math.huge,
+        math.huge
+    )
+    FlyVelocity.Velocity = Vector3.zero
+    FlyVelocity.Parent = RootPart
+
+    if Humanoid then
+        Humanoid.AutoRotate = false
+    end
+
+    FlyControls.Visible = true
+end
+
+local function StopFly()
+    if FlyVelocity then
+        FlyVelocity:Destroy()
+        FlyVelocity = nil
+    end
+
+    if Humanoid then
+        Humanoid.AutoRotate = true
+    end
+
+    FlyControls.Visible = false
+end
+
+--========================================================--
+-- NOCLIP
+--========================================================--
+
+MakeToggle(
+    MovementPage,
+    "NoClip",
+    function(enabled)
+        State.NoClipEnabled = enabled
+    end
+)
+
+--========================================================--
+-- MOVEMENT LOOP
+--========================================================--
+
+RunService.Heartbeat:Connect(function()
+    if not Character or not Character.Parent then
+        return
+    end
+
+    if not Humanoid or not RootPart then
+        return
+    end
+
+    -- NoClip
+    if State.NoClipEnabled then
+        for _, object in ipairs(Character:GetDescendants()) do
+            if object:IsA("BasePart") then
+                object.CanCollide = false
+            end
+        end
+    end
+
+    -- Fly
+    if State.FlyEnabled then
+        if not FlyVelocity or FlyVelocity.Parent ~= RootPart then
+            StartFly()
+        end
+
+        local camera = workspace.CurrentCamera
+
+        if camera and FlyVelocity then
+            local direction = Humanoid.MoveDirection
+
+            local velocity = direction * State.FlySpeed
+
+            local vertical = 0
+
+            if upHeld or keyboardUp then
+                vertical += State.FlySpeed
+            end
+
+            if downHeld or keyboardDown then
+                vertical -= State.FlySpeed
+            end
+
+            velocity += Vector3.new(0, vertical, 0)
+
+            FlyVelocity.Velocity = velocity
+        end
+    elseif FlyVelocity then
+        StopFly()
+    end
+end)
+
+print("[Hoai Hub] Part 2 loaded successfully.")
+--========================================================--
+-- HOAI HUB - PART 3/4
+-- Aim Lock + POV + ESP Player/NPC
+-- Team Check + Wall Check
+--========================================================--
+
+local Camera = workspace.CurrentCamera
+
+--========================================================--
+-- AIM SETTINGS
+--========================================================--
+
+MakeLabel(AimPage, "AIM LOCK")
+
+MakeNumberBox(
+    AimPage,
+    "Aim FOV",
+    120,
+    function(value)
+        State.AimFOV = math.clamp(value, 10, 1000)
+    end
+)
+
+MakeNumberBox(
+    AimPage,
+    "Smoothness",
+    0.15,
+    function(value)
+        State.AimSmoothness = math.clamp(value, 0.01, 1)
+    end
+)
+
+--========================================================--
+-- AIM TARGET
+--========================================================--
+
+local function GetCharacterRoot(player)
+    local character = player.Character
+
+    if not character then
+        return nil
+    end
+
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetHumanoid(character)
+    if not character then
+        return nil
+    end
+
+    return character:FindFirstChildOfClass("Humanoid")
+end
+
+local function IsAlive(player)
+    local character = player.Character
+
+    if not character then
+        return false
+    end
+
+    local humanoid = GetHumanoid(character)
+
+    return humanoid and humanoid.Health > 0
+end
+
+local function IsSameTeam(player)
+    if not State.AimTeamCheck then
+        return false
+    end
+
+    if not LocalPlayer.Team or not player.Team then
+        return false
+    end
+
+    return LocalPlayer.Team == player.Team
+end
+
+local function HasLineOfSight(targetPart)
+    if not State.AimWallCheck then
+        return true
+    end
+
+    if not Camera then
+        return false
+    end
+
+    local origin = Camera.CFrame.Position
+    local direction = targetPart.Position - origin
+
+    local params = RaycastParams.new()
+
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {
+        LocalPlayer.Character
+    }
+
+    params.IgnoreWater = true
+
+    local result = workspace:Raycast(
+        origin,
+        direction,
+        params
+    )
+
+    if not result then
+        return true
+    end
+
+    return result.Instance:IsDescendantOf(
+        targetPart.Parent
+    )
+end
+
+local function GetScreenDistance(worldPosition)
+    if not Camera then
+        return math.huge
+    end
+
+    local viewportPoint, visible =
+        Camera:WorldToViewportPoint(worldPosition)
+
+    if not visible then
+        return math.huge
+    end
+
+    local center = Vector2.new(
+        Camera.ViewportSize.X / 2,
+        Camera.ViewportSize.Y / 2
+    )
+
+    local point = Vector2.new(
+        viewportPoint.X,
+        viewportPoint.Y
+    )
+
+    return (point - center).Magnitude
+end
+
+local function FindBestTarget()
+    local bestPlayer = nil
+    local bestDistance = State.AimFOV
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer
+            and IsAlive(player)
+            and not IsSameTeam(player) then
+
+            local root = GetCharacterRoot(player)
+
+            if root then
+                local distance =
+                    GetScreenDistance(root.Position)
+
+                if distance <= bestDistance
+                    and HasLineOfSight(root) then
+
+                    bestDistance = distance
+                    bestPlayer = player
+                end
+            end
+        end
+    end
+
+    return bestPlayer
+end
+
+--========================================================--
+-- AIM LOCK TOGGLE
+--========================================================--
+
+MakeToggle(
+    AimPage,
+    "Aim Lock",
+    function(enabled)
+        State.AimEnabled = enabled
+
+        if not enabled then
+            State.AimTarget = nil
+        end
+    end
+)
+
+MakeToggle(
+    AimPage,
+    "Team Check",
+    function(enabled)
+        State.AimTeamCheck = enabled
+    end
+)
+
+MakeToggle(
+    AimPage,
+    "Wall Check",
+    function(enabled)
+        State.AimWallCheck = enabled
+    end
+)
+
+--========================================================--
+-- POV / FOV
+--========================================================--
+
+MakeLabel(AimPage, "CAMERA / POV")
+
+MakeNumberBox(
+    AimPage,
+    "Camera FOV",
+    70,
+    function(value)
+        State.FOV = math.clamp(value, 40, 120)
+
+        if Camera then
+            Camera.FieldOfView = State.FOV
+        end
+    end
+)
+
+--========================================================--
+-- ESP
+--========================================================--
+
+MakeLabel(AimPage, "ESP")
+
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "HoaiHubESP"
+ESPFolder.Parent = ScreenGui
+
+local ESPObjects = {}
+
+local function RemoveESP(instance)
+    local object = ESPObjects[instance]
+
+    if object then
+        if object.Highlight then
+            object.Highlight:Destroy()
+        end
+
+        if object.Billboard then
+            object.Billboard:Destroy()
+        end
+
+        ESPObjects[instance] = nil
+    end
+end
+
+local function CreateESP(instance, labelText)
+    if ESPObjects[instance] then
+        return
+    end
+
+    if not instance:IsA("Model") then
+        return
+    end
+
+    local humanoid = instance:FindFirstChildOfClass("Humanoid")
+
+    if not humanoid then
+        return
+    end
+
+    local root =
+        instance:FindFirstChild("HumanoidRootPart")
+        or instance:FindFirstChild("Head")
+
+    if not root or not root:IsA("BasePart") then
+        return
+    end
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "HoaiHighlight"
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillTransparency = 0.75
+    highlight.OutlineTransparency = 0
+    highlight.FillColor = CONFIG.Colors.Accent
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.Adornee = instance
+    highlight.Parent = ESPFolder
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "HoaiName"
+    billboard.Adornee = root
+    billboard.Size = UDim2.fromOffset(150, 32)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = ESPFolder
+
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.fromScale(1, 1)
+    text.BackgroundTransparency = 1
+    text.Text = labelText
+    text.TextColor3 = Color3.new(1, 1, 1)
+    text.TextStrokeTransparency = 0
+    text.TextSize = 12
+    text.Font = Enum.Font.GothamBold
+    text.Parent = billboard
+
+    ESPObjects[instance] = {
+        Highlight = highlight,
+        Billboard = billboard
+    }
+end
+
+local function ClearAllESP()
+    for instance in pairs(ESPObjects) do
+        RemoveESP(instance)
+    end
+end
+
+local function UpdatePlayerESP()
+    if not State.ESPPlayer then
+        return
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer
+            and player.Character
+            and IsAlive(player) then
+
+            CreateESP(
+                player.Character,
+                player.DisplayName
+            )
+        end
+    end
+end
+
+local function UpdateNPCESP()
+    if not State.ESPNPC then
+        return
+    end
+
+    for _, object in ipairs(workspace:GetDescendants()) do
+        if object:IsA("Model")
+            and not Players:GetPlayerFromCharacter(object)
+            and object:FindFirstChildOfClass("Humanoid") then
+
+            CreateESP(
+                object,
+                object.Name
+            )
+        end
+    end
+end
+
+MakeToggle(
+    AimPage,
+    "Player ESP",
+    function(enabled)
+        State.ESPPlayer = enabled
+
+        if not enabled and not State.ESPNPC then
+            ClearAllESP()
+        end
+    end
+)
+
+MakeToggle(
+    AimPage,
+    "NPC ESP",
+    function(enabled)
+        State.ESPNPC = enabled
+
+        if not enabled and not State.ESPPlayer then
+            ClearAllESP()
+        end
+    end
+)
+
+--========================================================--
+-- AIM LOOP
+--========================================================--
+
+RunService.RenderStepped:Connect(function()
+    Camera = workspace.CurrentCamera
+
+    if not Camera then
+        return
+    end
+
+    if State.AimEnabled then
+        local target = State.AimTarget
+
+        if not target or not IsAlive(target) then
+            target = FindBestTarget()
+            State.AimTarget = target
+        end
+
+        if target then
+            local root = GetCharacterRoot(target)
+
+            if root then
+                local desired =
+                    CFrame.lookAt(
+                        Camera.CFrame.Position,
+                        root.Position
+                    )
+
+                Camera.CFrame =
+                    Camera.CFrame:Lerp(
+                        desired,
+                        State.AimSmoothness
+                    )
+            end
+        end
+    end
+
+    if State.ESPPlayer or State.ESPNPC then
+        UpdatePlayerESP()
+        UpdateNPCESP()
+    end
+end)
+
+--========================================================--
+-- PLAYER CLEANUP
+--========================================================--
+
+Players.PlayerRemoving:Connect(function(player)
+    if player.Character then
+        RemoveESP(player.Character)
+    end
+end)
+
+print("[Hoai Hub] Part 3 loaded successfully.")
+--========================================================--
+-- HOAI HUB - PART 4/4
+-- Teleport / Invisible / Theme / UI Scale / Fix Lag
+--========================================================--
+
+--========================================================--
+-- TELEPORT
+--========================================================--
+
+MakeLabel(TeleportPage, "PLAYER TELEPORT")
+
+local PlayerDropdown = Create("TextButton", {
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundColor3 = CONFIG.Colors.Button,
+    Text = "Select Player",
+    TextColor3 = CONFIG.Colors.Text,
+    TextSize = 13,
+    Font = Enum.Font.GothamSemibold,
+    AutoButtonColor = false
+}, TeleportPage)
+
+AddCorner(PlayerDropdown, 8)
+
+local SelectedPlayer = nil
+
+local function RefreshPlayerList()
+    local players = Players:GetPlayers()
+
+    SelectedPlayer = nil
+    PlayerDropdown.Text = "Select Player"
+
+    local menu = TeleportPage:FindFirstChild("PlayerList")
+
+    if menu then
+        menu:Destroy()
+    end
+
+    menu = Create("Frame", {
+        Name = "PlayerList",
+        Size = UDim2.new(1, 0, 0, math.min(#players * 35, 210)),
+        BackgroundColor3 = CONFIG.Colors.Panel,
+        BorderSizePixel = 0,
+        Visible = false
+    }, TeleportPage)
+
+    AddCorner(menu, 8)
+
+    Create("UIListLayout", {
+        Padding = UDim.new(0, 2)
+    }, menu)
+
+    for _, player in ipairs(players) do
+        if player ~= LocalPlayer then
+            local button = Create("TextButton", {
+                Size = UDim2.new(1, 0, 0, 33),
+                BackgroundColor3 = CONFIG.Colors.Button,
+                Text = player.DisplayName,
+                TextColor3 = CONFIG.Colors.Text,
+                TextSize = 12,
+                Font = Enum.Font.Gotham,
+                AutoButtonColor = false
+            }, menu)
+
+            AddCorner(button, 6)
+
+            button.MouseButton1Click:Connect(function()
+                SelectedPlayer = player
+                PlayerDropdown.Text =
+                    "Target: " .. player.DisplayName
+
+                menu.Visible = false
+            end)
+        end
+    end
+end
+
+RefreshPlayerList()
+
+PlayerDropdown.MouseButton1Click:Connect(function()
+    local menu = TeleportPage:FindFirstChild("PlayerList")
+
+    if menu then
+        menu.Visible = not menu.Visible
+    end
+end)
+
+Players.PlayerAdded:Connect(function()
+    task.defer(RefreshPlayerList)
+end)
+
+Players.PlayerRemoving:Connect(function()
+    task.defer(RefreshPlayerList)
+end)
+
+local TeleportButton = Create("TextButton", {
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundColor3 = CONFIG.Colors.Accent,
+    Text = "Teleport To Player",
+    TextColor3 = Color3.new(1, 1, 1),
+    TextSize = 13,
+    Font = Enum.Font.GothamBold,
+    AutoButtonColor = false
+}, TeleportPage)
+
+AddCorner(TeleportButton, 8)
+
+TeleportButton.MouseButton1Click:Connect(function()
+    if not SelectedPlayer then
+        return
+    end
+
+    RefreshCharacter()
+
+    local targetRoot = GetCharacterRoot(SelectedPlayer)
+
+    if RootPart and targetRoot then
+        RootPart.CFrame =
+            targetRoot.CFrame
+            * CFrame.new(0, 0, -4)
+    end
+end)
+
+--========================================================--
+-- INVISIBLE
+--========================================================--
+
+MakeLabel(SettingsPage, "PLAYER")
+
+local function SetInvisible(enabled)
+    State.Invisible = enabled
+
+    if not Character then
+        return
+    end
+
+    for _, object in ipairs(Character:GetDescendants()) do
+        if object:IsA("BasePart") then
+            object.LocalTransparencyModifier =
+                enabled and 1 or 0
+        elseif object:IsA("Decal") then
+            object.Transparency =
+                enabled and 1 or 0
+        end
+    end
+end
+
+MakeToggle(
+    SettingsPage,
+    "Invisible",
+    function(enabled)
+        SetInvisible(enabled)
+    end
+)
+
+--========================================================--
+-- UI SCALE
+--========================================================--
+
+MakeLabel(SettingsPage, "INTERFACE")
+
+MakeNumberBox(
+    SettingsPage,
+    "UI Scale",
+    0.85,
+    function(value)
+        State.UIScale =
+            math.clamp(value, 0.5, 1.5)
+
+        Scale.Scale = State.UIScale
+    end
+)
+
+--========================================================--
+-- THEME
+--========================================================--
+
+local ThemeButton = Create("TextButton", {
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundColor3 = CONFIG.Colors.Button,
+    Text = "Theme: Dark",
+    TextColor3 = CONFIG.Colors.Text,
+    TextSize = 13,
+    Font = Enum.Font.GothamSemibold,
+    AutoButtonColor = false
+}, SettingsPage)
+
+AddCorner(ThemeButton, 8)
+
+local function ApplyTheme(theme)
+    State.Theme = theme
+
+    local background
+    local secondary
+    local panel
+    local button
+    local accent
+
+    if theme == "Dark" then
+        background = Color3.fromRGB(15, 15, 20)
+        secondary = Color3.fromRGB(22, 22, 30)
+        panel = Color3.fromRGB(28, 28, 38)
+        button = Color3.fromRGB(38, 38, 50)
+        accent = Color3.fromRGB(90, 120, 255)
+    else
+        background = Color3.fromRGB(235, 235, 240)
+        secondary = Color3.fromRGB(220, 220, 228)
+        panel = Color3.fromRGB(245, 245, 248)
+        button = Color3.fromRGB(205, 205, 215)
+        accent = Color3.fromRGB(70, 100, 220)
+    end
+
+    MainWindow.BackgroundColor3 = background
+    Header.BackgroundColor3 = secondary
+    Sidebar.BackgroundColor3 = secondary
+    Content.BackgroundColor3 = secondary
+    Logo.BackgroundColor3 = accent
+
+    for _, object in ipairs(
+        Sidebar:GetDescendants()
+    ) do
+        if object:IsA("TextButton")
+            and object ~= Close
+            and object ~= Minimize then
+
+            object.BackgroundColor3 = button
+        end
+    end
+
+    ThemeButton.Text = "Theme: " .. theme
+end
+
+ThemeButton.MouseButton1Click:Connect(function()
+    if State.Theme == "Dark" then
+        ApplyTheme("Light")
+    else
+        ApplyTheme("Dark")
+    end
+end)
+
+--========================================================--
+-- FIX LAG
+--========================================================--
+
+MakeLabel(SettingsPage, "PERFORMANCE")
+
+local FixLagButton = Create("TextButton", {
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundColor3 = CONFIG.Colors.Button,
+    Text = "Fix Lag / Low Effects",
+    TextColor3 = CONFIG.Colors.Text,
+    TextSize = 13,
+    Font = Enum.Font.GothamSemibold,
+    AutoButtonColor = false
+}, SettingsPage)
+
+AddCorner(FixLagButton, 8)
+
+local function FixLag()
+    local lighting = game:GetService("Lighting")
+
+    lighting.GlobalShadows = false
+    lighting.FogEnd = 100000
+
+    for _, object in ipairs(workspace:GetDescendants()) do
+        if object:IsA("ParticleEmitter")
+            or object:IsA("Trail")
+            or object:IsA("Beam") then
+
+            object.Enabled = false
+        elseif object:IsA("PostEffect") then
+            object.Enabled = false
+        end
+    end
+
+    if workspace.CurrentCamera then
+        workspace.CurrentCamera.FieldOfView =
+            State.FOV
+    end
+end
+
+FixLagButton.MouseButton1Click:Connect(FixLag)
+
+--========================================================--
+-- RESET MOVEMENT
+--========================================================--
+
+local ResetButton = Create("TextButton", {
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundColor3 = CONFIG.Colors.Button,
+    Text = "Reset Movement",
+    TextColor3 = CONFIG.Colors.Text,
+    TextSize = 13,
+    Font = Enum.Font.GothamSemibold,
+    AutoButtonColor = false
+}, SettingsPage)
+
+AddCorner(ResetButton, 8)
+
+ResetButton.MouseButton1Click:Connect(function()
+    State.SpeedEnabled = false
+    State.JumpEnabled = false
+    State.FlyEnabled = false
+    State.NoClipEnabled = false
+
+    if Humanoid then
+        Humanoid.WalkSpeed = CONFIG.DefaultWalkSpeed
+        Humanoid.UseJumpPower = true
+        Humanoid.JumpPower = CONFIG.DefaultJumpPower
+        Humanoid.AutoRotate = true
+    end
+
+    if FlyVelocity then
+        FlyVelocity:Destroy()
+        FlyVelocity = nil
+    end
+
+    FlyControls.Visible = false
+end)
+
+--========================================================--
+-- CHARACTER UPDATE
+--========================================================--
+
+LocalPlayer.CharacterAdded:Connect(function(character)
+    Character = character
+
+    task.wait(0.25)
+
+    Humanoid =
+        character:FindFirstChildOfClass("Humanoid")
+
+    RootPart =
+        character:FindFirstChild("HumanoidRootPart")
+
+    if State.Invisible then
+        SetInvisible(true)
+    end
+end)
+
+--========================================================--
+-- FINAL CAMERA SETUP
+--========================================================--
+
+task.defer(function()
+    Camera = workspace.CurrentCamera
+
+    if Camera then
+        Camera.FieldOfView = State.FOV
+    end
+end)
+
+--========================================================--
+-- FINAL STATUS
+--========================================================--
+
+print("========================================")
+print(" Hoai Hub loaded successfully")
+print(" Part 1/4 - Core/UI")
+print(" Part 2/4 - Movement")
+print(" Part 3/4 - Aim/ESP")
+print(" Part 4/4 - Teleport/Settings")
+print("========================================")
