@@ -551,3 +551,475 @@ draggable(title,main)
 draggable(toggle,toggle)
 
 print("HOAI HUB - PART 1 LOADED")
+--==================================================
+-- HOAI HUB - PART 2/3
+-- PLAYER / TP / ESP / AIM
+--==================================================
+
+local H = _G.HoaiHub
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+--==================================================
+-- CHARACTER
+--==================================================
+
+function H.GetCharacter()
+	return player.Character
+end
+
+function H.GetRoot()
+
+	local c = H.GetCharacter()
+
+	return c and c:FindFirstChild("HumanoidRootPart")
+
+end
+
+function H.GetHumanoid()
+
+	local c = H.GetCharacter()
+
+	return c and c:FindFirstChildOfClass("Humanoid")
+
+end
+
+--==================================================
+-- PLAYER TP
+--==================================================
+
+local selectedPlayer = nil
+
+H.Label(H.Pages.PLAYER,"Chọn người chơi để teleport.",30)
+
+local selectedLabel =
+	H.Label(H.Pages.PLAYER,"Selected: NONE",30)
+
+local playerList = Instance.new("ScrollingFrame")
+playerList.Size = UDim2.new(1,-8,0,130)
+playerList.BackgroundColor3 = Color3.fromRGB(25,23,33)
+playerList.BorderSizePixel = 0
+playerList.ScrollBarThickness = 2
+playerList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+playerList.Parent = H.Pages.PLAYER
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0,4)
+listLayout.Parent = playerList
+
+local function refreshPlayers()
+
+	for _,obj in ipairs(playerList:GetChildren()) do
+
+		if obj:IsA("TextButton") then
+			obj:Destroy()
+		end
+
+	end
+
+	for _,plr in ipairs(Players:GetPlayers()) do
+
+		if plr ~= player then
+
+			local b = Instance.new("TextButton")
+
+			b.Size = UDim2.new(1,-8,0,28)
+			b.BackgroundColor3 = Color3.fromRGB(35,31,45)
+			b.Text = plr.DisplayName.."  @"..plr.Name
+			b.TextColor3 = Color3.new(1,1,1)
+			b.Font = Enum.Font.Gotham
+			b.TextSize = 9
+			b.Parent = playerList
+
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(0,7)
+			c.Parent = b
+
+			b.Activated:Connect(function()
+
+				selectedPlayer = plr
+
+				selectedLabel.Text =
+					"Selected: "..plr.DisplayName.."  @"..plr.Name
+
+				updateTPButton()
+
+			end)
+
+		end
+
+	end
+
+end
+
+H.TPButton = H.Button(
+	H.Pages.PLAYER,
+	"TP ĐẾN: NONE",
+	function()
+
+		if not selectedPlayer then
+			return
+		end
+
+		local myCharacter = H.GetCharacter()
+		local targetCharacter = selectedPlayer.Character
+
+		if not myCharacter or not targetCharacter then
+			return
+		end
+
+		local targetRoot =
+			targetCharacter:FindFirstChild("HumanoidRootPart")
+
+		if targetRoot then
+
+			myCharacter:PivotTo(
+				targetRoot.CFrame * CFrame.new(0,0,4)
+			)
+
+		end
+
+	end
+)
+
+function updateTPButton()
+
+	if selectedPlayer then
+		H.TPButton.Text =
+			"TP ĐẾN: "..selectedPlayer.Name
+	else
+		H.TPButton.Text =
+			"TP ĐẾN: NONE"
+	end
+
+end
+
+H.Button(
+	H.Pages.PLAYER,
+	"REFRESH PLAYER LIST",
+	function()
+		refreshPlayers()
+	end
+)
+
+refreshPlayers()
+
+Players.PlayerAdded:Connect(function()
+	task.wait(0.2)
+	refreshPlayers()
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+
+	if selectedPlayer == plr then
+		selectedPlayer = nil
+		selectedLabel.Text = "Selected: NONE"
+		updateTPButton()
+	end
+
+	refreshPlayers()
+
+end)
+
+--==================================================
+-- AIM
+--==================================================
+
+H.CurrentTarget = nil
+
+function H.FindNearestPlayer()
+
+	local myRoot = H.GetRoot()
+
+	if not myRoot then
+		return nil,nil,math.huge
+	end
+
+	local nearestPlayer = nil
+	local nearestRoot = nil
+	local nearestDistance = H.Settings.AimRange
+
+	for _,target in ipairs(Players:GetPlayers()) do
+
+		if target ~= player then
+
+			local character = target.Character
+
+			local humanoid =
+				character and
+				character:FindFirstChildOfClass("Humanoid")
+
+			local root =
+				character and
+				character:FindFirstChild("HumanoidRootPart")
+
+			if humanoid and root and humanoid.Health > 0 then
+
+				local distance =
+					(myRoot.Position-root.Position).Magnitude
+
+				if distance < nearestDistance then
+
+					nearestDistance = distance
+					nearestPlayer = target
+					nearestRoot = root
+
+				end
+
+			end
+
+		end
+
+	end
+
+	return nearestPlayer,nearestRoot,nearestDistance
+
+end
+
+--==================================================
+-- AIM TARGET API
+--==================================================
+
+_G.HoaiHubGetAimTarget = function()
+
+	if not H.Settings.Aim then
+		return nil
+	end
+
+	local target,root,distance =
+		H.FindNearestPlayer()
+
+	if not target or not root then
+		return nil
+	end
+
+	return {
+		Player = target,
+		Character = target.Character,
+		Root = root,
+		Position = root.Position,
+		Distance = distance
+	}
+
+end
+
+--==================================================
+-- ESP
+--==================================================
+
+H.ESPObjects = {}
+
+local function removeESP(plr)
+
+	local data = H.ESPObjects[plr]
+
+	if not data then
+		return
+	end
+
+	if data.Highlight then
+		data.Highlight:Destroy()
+	end
+
+	if data.Billboard then
+		data.Billboard:Destroy()
+	end
+
+	H.ESPObjects[plr] = nil
+
+end
+
+local function createESP(plr)
+
+	if plr == player then
+		return
+	end
+
+	if not H.Settings.ESP then
+		return
+	end
+
+	local character = plr.Character
+
+	if not character then
+		return
+	end
+
+	local root =
+		character:FindFirstChild("HumanoidRootPart")
+
+	local humanoid =
+		character:FindFirstChildOfClass("Humanoid")
+
+	if not root or not humanoid then
+		return
+	end
+
+	if H.ESPObjects[plr] then
+		return
+	end
+
+	local highlight = Instance.new("Highlight")
+
+	highlight.Name = "HoaiESP"
+	highlight.Adornee = character
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.FillTransparency = 0.75
+	highlight.OutlineTransparency = 0
+	highlight.Parent = character
+
+	local billboard = Instance.new("BillboardGui")
+
+	billboard.Name = "HoaiESPInfo"
+	billboard.Adornee = root
+	billboard.Size = UDim2.fromOffset(180,42)
+	billboard.StudsOffset = Vector3.new(0,3.2,0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = character
+
+	local text = Instance.new("TextLabel")
+
+	text.Size = UDim2.fromScale(1,1)
+	text.BackgroundTransparency = 1
+	text.TextColor3 = Color3.new(1,1,1)
+	text.TextStrokeTransparency = 0.2
+	text.Font = Enum.Font.GothamBold
+	text.TextSize = 11
+	text.Parent = billboard
+
+	H.ESPObjects[plr] = {
+		Highlight = highlight,
+		Billboard = billboard,
+		Text = text
+	}
+
+end
+
+function H.ClearESP()
+
+	for plr in pairs(H.ESPObjects) do
+		removeESP(plr)
+	end
+
+end
+
+--==================================================
+-- AIM CAMERA
+--==================================================
+
+RunService.RenderStepped:Connect(function()
+
+	if not H.Settings.Aim then
+
+		H.CurrentTarget = nil
+		H.TargetLabel.Text = "Aim Target: NONE"
+
+		return
+
+	end
+
+	local target,targetRoot,distance =
+		H.FindNearestPlayer()
+
+	H.CurrentTarget = target
+
+	if target and targetRoot then
+
+		local camera = workspace.CurrentCamera
+
+		if camera then
+
+			local wanted =
+				CFrame.lookAt(
+					camera.CFrame.Position,
+					targetRoot.Position
+				)
+
+			camera.CFrame =
+				camera.CFrame:Lerp(
+					wanted,
+					H.Settings.AimSmooth
+				)
+
+		end
+
+		H.TargetLabel.Text =
+			string.format(
+				"Aim Target: %s | %.0f studs",
+				target.DisplayName,
+				distance
+			)
+
+	else
+
+		H.TargetLabel.Text =
+			"Aim Target: NONE"
+
+	end
+
+end)
+
+--==================================================
+-- ESP LOOP
+--==================================================
+
+RunService.Heartbeat:Connect(function()
+
+	if not H.Settings.ESP then
+
+		H.ClearESP()
+
+		return
+
+	end
+
+	for _,plr in ipairs(Players:GetPlayers()) do
+
+		if plr ~= player then
+
+			createESP(plr)
+
+			local data = H.ESPObjects[plr]
+
+			if data and plr.Character then
+
+				local root =
+					plr.Character:FindFirstChild("HumanoidRootPart")
+
+				local humanoid =
+					plr.Character:FindFirstChildOfClass("Humanoid")
+
+				if root and humanoid then
+
+					local myRoot = H.GetRoot()
+
+					local distance = 0
+
+					if myRoot then
+						distance =
+							(myRoot.Position-root.Position).Magnitude
+					end
+
+					data.Text.Text =
+						string.format(
+							"%s\nHP: %.0f | %.0f studs",
+							plr.DisplayName,
+							humanoid.Health,
+							distance
+						)
+
+				end
+
+			end
+
+		end
+
+	end
+
+end)
+
+print("HOAI HUB - PART 2 LOADED")
+
