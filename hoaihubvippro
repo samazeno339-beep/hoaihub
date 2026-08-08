@@ -1,0 +1,434 @@
+--==================================================
+-- HOAI HUB - ROBLOX STUDIO ADMIN / TEST UI
+-- Single LocalScript
+-- Dùng cho game của chính bạn / môi trường test
+--==================================================
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local PLAYER_GUI = player:WaitForChild("PlayerGui")
+
+local AVATAR_IMAGE = "rbxassetid://96252137987835"
+
+local Settings = {
+    Fly = false,
+    NoClip = false,
+    Speed = false,
+    Jump = false,
+    ESP = false,
+    RemoveEffects = false,
+    FlySpeed = 60,
+    WalkSpeed = 32,
+    JumpPower = 70,
+    MenuScale = 1,
+}
+
+--==================================================
+-- GUI
+--==================================================
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "HoaiHub"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = PLAYER_GUI
+
+local function corner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius)
+    c.Parent = parent
+    return c
+end
+
+local function stroke(parent, thickness)
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(150, 70, 255)
+    s.Thickness = thickness
+    s.Transparency = 0.15
+    s.Parent = parent
+    return s
+end
+
+-- Floating avatar button
+local toggle = Instance.new("ImageButton")
+toggle.Name = "MenuToggle"
+toggle.Size = UDim2.fromOffset(72, 72)
+toggle.Position = UDim2.new(0, 22, 0.5, -36)
+toggle.BackgroundColor3 = Color3.fromRGB(20, 16, 30)
+toggle.Image = AVATAR_IMAGE
+toggle.ScaleType = Enum.ScaleType.Crop
+toggle.Parent = gui
+corner(toggle, 36)
+stroke(toggle, 3)
+
+-- Main menu
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.fromOffset(520, 390)
+main.Position = UDim2.new(0.5, -260, 0.5, -195)
+main.BackgroundColor3 = Color3.fromRGB(13, 12, 19)
+main.Visible = false
+main.Parent = gui
+corner(main, 18)
+stroke(main, 2)
+
+local scale = Instance.new("UIScale")
+scale.Scale = Settings.MenuScale
+scale.Parent = main
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -70, 0, 48)
+title.Position = UDim2.fromOffset(18, 4)
+title.BackgroundTransparency = 1
+title.Text = "HOÀI HUB"
+title.TextColor3 = Color3.fromRGB(205, 145, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = main
+
+local version = Instance.new("TextLabel")
+version.Size = UDim2.new(1, -80, 0, 20)
+version.Position = UDim2.fromOffset(20, 34)
+version.BackgroundTransparency = 1
+version.Text = "ADMIN / TEST • v1.0"
+version.TextColor3 = Color3.fromRGB(150, 145, 165)
+version.Font = Enum.Font.Gotham
+version.TextSize = 10
+version.TextXAlignment = Enum.TextXAlignment.Left
+version.Parent = main
+
+local close = Instance.new("TextButton")
+close.Size = UDim2.fromOffset(38, 38)
+close.Position = UDim2.new(1, -48, 0, 8)
+close.BackgroundColor3 = Color3.fromRGB(35, 28, 45)
+close.Text = "×"
+close.TextColor3 = Color3.new(1, 1, 1)
+close.Font = Enum.Font.GothamBold
+close.TextSize = 22
+close.Parent = main
+corner(close, 10)
+
+-- Sidebar
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.fromOffset(125, 320)
+sidebar.Position = UDim2.fromOffset(12, 58)
+sidebar.BackgroundColor3 = Color3.fromRGB(20, 18, 28)
+sidebar.Parent = main
+corner(sidebar, 12)
+
+local sideLayout = Instance.new("UIListLayout")
+sideLayout.Padding = UDim.new(0, 6)
+sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sideLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sideLayout.Parent = sidebar
+
+local sidePad = Instance.new("UIPadding")
+sidePad.PaddingTop = UDim.new(0, 10)
+sidePad.Parent = sidebar
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -155, 1, -70)
+content.Position = UDim2.fromOffset(145, 58)
+content.BackgroundTransparency = 1
+content.Parent = main
+
+local pages = {}
+
+local function makePage(name)
+    local page = Instance.new("ScrollingFrame")
+    page.Name = name
+    page.Size = UDim2.fromScale(1, 1)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+    page.Parent = content
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = page
+
+    pages[name] = page
+    return page
+end
+
+local home = makePage("Home")
+local move = makePage("Move")
+local visual = makePage("Visual")
+local settingsPage = makePage("Settings")
+
+local tabs = {}
+
+local function showPage(name)
+    for pageName, page in pairs(pages) do
+        page.Visible = pageName == name
+    end
+    for tabName, button in pairs(tabs) do
+        button.BackgroundColor3 =
+            tabName == name
+            and Color3.fromRGB(95, 45, 150)
+            or Color3.fromRGB(30, 27, 39)
+    end
+end
+
+local function makeTab(text, pageName)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.fromOffset(108, 34)
+    b.BackgroundColor3 = Color3.fromRGB(30, 27, 39)
+    b.Text = text
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 11
+    b.Parent = sidebar
+    corner(b, 9)
+    tabs[pageName] = b
+    b.Activated:Connect(function()
+        showPage(pageName)
+    end)
+end
+
+makeTab("HOME", "Home")
+makeTab("MOVE", "Move")
+makeTab("VISUAL", "Visual")
+makeTab("SETTING", "Settings")
+
+local function label(parent, text)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(1, -8, 0, 32)
+    l.BackgroundColor3 = Color3.fromRGB(25, 23, 33)
+    l.Text = text
+    l.TextColor3 = Color3.new(1, 1, 1)
+    l.Font = Enum.Font.Gotham
+    l.TextSize = 11
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = parent
+    corner(l, 9)
+    return l
+end
+
+local function button(parent, text, callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, -8, 0, 38)
+    b.BackgroundColor3 = Color3.fromRGB(31, 28, 40)
+    b.Text = text .. " [OFF]"
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 11
+    b.Parent = parent
+    corner(b, 9)
+
+    local on = false
+    b.Activated:Connect(function()
+        on = not on
+        b.Text = text .. (on and " [ON]" or " [OFF]")
+        b.BackgroundColor3 = on
+            and Color3.fromRGB(92, 45, 150)
+            or Color3.fromRGB(31, 28, 40)
+        callback(on)
+    end)
+    return b
+end
+
+local function numberBox(parent, titleText, value, callback)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, -8, 0, 38)
+    box.BackgroundColor3 = Color3.fromRGB(31, 28, 40)
+    box.Text = tostring(value)
+    box.PlaceholderText = titleText
+    box.TextColor3 = Color3.new(1, 1, 1)
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 11
+    box.ClearTextOnFocus = false
+    box.Parent = parent
+    corner(box, 9)
+
+    box.FocusLost:Connect(function()
+        local n = tonumber(box.Text)
+        if n then
+            callback(n)
+        else
+            box.Text = tostring(value)
+        end
+    end)
+    return box
+end
+
+-- Home
+label(home, "Welcome, " .. player.DisplayName)
+label(home, "Hoài Hub • Admin / Test UI")
+label(home, "Menu toggle: bấm avatar tròn để mở lại")
+
+-- Move
+button(move, "FLY", function(on)
+    Settings.Fly = on
+end)
+
+numberBox(move, "Fly Speed", Settings.FlySpeed, function(v)
+    Settings.FlySpeed = math.clamp(v, 10, 300)
+end)
+
+button(move, "SPEED", function(on)
+    Settings.Speed = on
+end)
+
+numberBox(move, "Walk Speed", Settings.WalkSpeed, function(v)
+    Settings.WalkSpeed = math.clamp(v, 1, 200)
+end)
+
+button(move, "JUMP", function(on)
+    Settings.Jump = on
+end)
+
+numberBox(move, "Jump Power", Settings.JumpPower, function(v)
+    Settings.JumpPower = math.clamp(v, 1, 200)
+end)
+
+button(move, "NOCLIP", function(on)
+    Settings.NoClip = on
+end)
+
+-- Visual
+button(visual, "ESP", function(on)
+    Settings.ESP = on
+end)
+
+button(visual, "REMOVE EFFECTS", function(on)
+    Settings.RemoveEffects = on
+end)
+
+-- Settings
+numberBox(settingsPage, "Menu Scale (0.6 - 1.5)", Settings.MenuScale, function(v)
+    Settings.MenuScale = math.clamp(v, 0.6, 1.5)
+    scale.Scale = Settings.MenuScale
+end)
+
+label(settingsPage, "Avatar ID: 96252137987835")
+label(settingsPage, "Dùng trong game Roblox của bạn / Studio")
+
+--==================================================
+-- Toggle + Drag
+--==================================================
+
+toggle.Activated:Connect(function()
+    main.Visible = not main.Visible
+end)
+
+close.Activated:Connect(function()
+    main.Visible = false
+end)
+
+local function makeDraggable(handle, object)
+    local dragging = false
+    local startInput
+    local startPos
+
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            startInput = input.Position
+            startPos = object.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - startInput
+            object.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+makeDraggable(title, main)
+makeDraggable(toggle, toggle)
+
+--==================================================
+-- Runtime admin/test movement
+--==================================================
+
+local bodyVelocity
+
+local function getCharacter()
+    return player.Character
+end
+
+local function getRoot()
+    local c = getCharacter()
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function getHumanoid()
+    local c = getCharacter()
+    return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+RunService.Heartbeat:Connect(function()
+    local character = getCharacter()
+    local humanoid = getHumanoid()
+    local root = getRoot()
+
+    if humanoid then
+        humanoid.WalkSpeed = Settings.Speed and Settings.WalkSpeed or 16
+        humanoid.UseJumpPower = true
+        humanoid.JumpPower = Settings.Jump and Settings.JumpPower or 50
+    end
+
+    if Settings.NoClip and character then
+        for _, obj in ipairs(character:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                obj.CanCollide = false
+            end
+        end
+    end
+
+    if Settings.Fly and root then
+        if not bodyVelocity or bodyVelocity.Parent ~= root then
+            if bodyVelocity then bodyVelocity:Destroy() end
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVelocity.Parent = root
+        end
+
+        local camera = workspace.CurrentCamera
+        local direction = Vector3.zero
+
+        if camera then
+            local move = humanoid and humanoid.MoveDirection or Vector3.zero
+            direction = move
+        end
+
+        local vertical = 0
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vertical += 1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vertical -= 1 end
+
+        bodyVelocity.Velocity =
+            direction * Settings.FlySpeed
+            + Vector3.new(0, vertical * Settings.FlySpeed, 0)
+    elseif bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+end)
+
+showPage("Home")
+
+print("Hoai Hub loaded - Studio/Admin test version")
