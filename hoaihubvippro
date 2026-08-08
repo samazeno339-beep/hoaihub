@@ -752,3 +752,360 @@ local function applyOptimize()
 		if obj:IsA("PostEffect") then
 			if savedLighting[obj] == nil then
 				savedLighting[obj] = obj.Enabled
+end
+			obj.Enabled = false
+		end
+	end
+end
+
+local function restoreOptimize()
+	for obj, enabled in pairs(savedEffects) do
+		if obj and obj.Parent then
+			obj.Enabled = enabled
+		end
+	end
+
+	for obj, enabled in pairs(savedLighting) do
+		if obj and obj.Parent then
+			obj.Enabled = enabled
+		end
+	end
+
+	table.clear(savedEffects)
+	table.clear(savedLighting)
+end
+
+local function refreshOptimizeState()
+	local shouldApply = Settings.RemoveEffects or Settings.FixLag
+	if shouldApply and not optimizeApplied then
+		applyOptimize()
+		optimizeApplied = true
+	elseif not shouldApply and optimizeApplied then
+		restoreOptimize()
+		optimizeApplied = false
+	end
+end
+
+--==================================================
+-- FLY BUTTONS (MOBILE / TOUCH)
+--==================================================
+
+local flyUpButton = Instance.new("TextButton")
+flyUpButton.Size = UDim2.fromOffset(54, 48)
+flyUpButton.Position = UDim2.new(1, -116, 1, -128)
+flyUpButton.BackgroundColor3 = Color3.fromRGB(92, 45, 150)
+flyUpButton.Text = "▲"
+flyUpButton.TextColor3 = Color3.new(1, 1, 1)
+flyUpButton.Font = Enum.Font.GothamBold
+flyUpButton.TextSize = 20
+flyUpButton.Visible = false
+flyUpButton.Parent = gui
+corner(flyUpButton, 24)
+
+local flyDownButton = flyUpButton:Clone()
+flyDownButton.Name = "FlyDown"
+flyDownButton.Text = "▼"
+flyDownButton.Position = UDim2.new(1, -56, 1, -128)
+flyDownButton.Parent = gui
+
+local flyUpHeld = false
+local flyDownHeld = false
+
+flyUpButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		flyUpHeld = true
+	end
+end)
+
+flyUpButton.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		flyUpHeld = false
+	end
+end)
+
+flyDownButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		flyDownHeld = true
+	end
+end)
+
+flyDownButton.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		flyDownHeld = false
+	end
+end)
+
+--==================================================
+-- OPEN / CLOSE / DRAG
+--==================================================
+
+avatarToggle.Activated:Connect(function()
+	main.Visible = not main.Visible
+end)
+
+closeButton.Activated:Connect(function()
+	main.Visible = false
+end)
+
+local function makeDraggable(handle, object)
+	local dragging = false
+	local startInput
+	local startPos
+
+	handle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			startInput = input.Position
+			startPos = object.Position
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch then
+			local delta = input.Position - startInput
+			object.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+makeDraggable(title, main)
+makeDraggable(avatarToggle, avatarToggle)
+
+--==================================================
+-- PLAYER LIST / ESP REFRESH
+--==================================================
+
+Players.PlayerAdded:Connect(function(newPlayer)
+	newPlayer.CharacterAdded:Connect(function()
+		if Settings.PlayerESP then
+			task.wait(0.25)
+			ensurePlayerESP(newPlayer)
+		end
+	end)
+	refreshPlayerList()
+end)
+
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+	if selectedPlayer == leavingPlayer then
+		selectedPlayer = nil
+		selectedPlayerLabel.Text = "Selected: NONE"
+	end
+	removePlayerESP(leavingPlayer)
+	refreshPlayerList()
+end)
+
+--==================================================
+-- MAIN LOOPS
+--==================================================
+
+local fpsCounter = 0
+local fpsValue = 0
+local lastFpsTick = os.clock()
+local pingValue = "--"
+
+task.spawn(function()
+	while gui.Parent do
+		RunService.RenderStepped:Wait()
+		fpsCounter += 1
+		local now = os.clock()
+		if now - lastFpsTick >= 1 then
+			fpsValue = fpsCounter / (now - lastFpsTick)
+			fpsCounter = 0
+			lastFpsTick = now
+
+			local ok, ping = pcall(function()
+				return player:GetNetworkPing() * 1000
+			end)
+			if ok and typeof(ping) == "number" then
+				pingValue = string.format("%.0f", ping)
+			else
+				pingValue = "--"
+			end
+
+			fpsPingLabel.Text = string.format("FPS: %.0f   |   Ping: %s ms", fpsValue, pingValue)
+		end
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	-- Aim
+	if Settings.Aim then
+		local targetPlayer, targetRoot = findNearestPlayer()
+		currentAimTarget = targetPlayer
+
+		if targetPlayer and targetRoot then
+			local camera = workspace.CurrentCamera
+			if camera then
+				local wanted = CFrame.lookAt(camera.CFrame.Position, targetRoot.Position)
+				camera.CFrame = camera.CFrame:Lerp(wanted, Settings.AimSmooth)
+			end
+			aimNowLabel.Text = string.format(
+				"Aim Target: %s | %.0f studs",
+				targetPlayer.DisplayName,
+				(targetRoot.Position - (getRoot() and getRoot().Position or targetRoot.Position)).Magnitude
+			)
+		else
+			aimNowLabel.Text = "Aim Target: NONE"
+		end
+	else
+		currentAimTarget = nil
+		aimNowLabel.Text = "Aim Target: NONE"
+	end
+
+	-- Fly
+	local humanoid = getHumanoid()
+	local root = getRoot()
+
+	if Settings.Fly and humanoid and root then
+		flyUpButton.Visible = true
+		flyDownButton.Visible = true
+
+		if not humanoid:GetAttribute("HoaiHubFlySetup") then
+			humanoid:SetAttribute("HoaiHubFlySetup", true)
+		end
+
+		if not root:FindFirstChild("HoaiHubFlyVelocity") then
+			local bv = Instance.new("BodyVelocity")
+			bv.Name = "HoaiHubFlyVelocity"
+			bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+			bv.P = 12500
+			bv.Parent = root
+		end
+
+		if not root:FindFirstChild("HoaiHubFlyGyro") then
+			local bg = Instance.new("BodyGyro")
+			bg.Name = "HoaiHubFlyGyro"
+			bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+			bg.P = 20000
+			bg.Parent = root
+		end
+
+		local bv = root:FindFirstChild("HoaiHubFlyVelocity")
+		local bg = root:FindFirstChild("HoaiHubFlyGyro")
+
+		if bv and bg then
+			humanoid.PlatformStand = true
+			humanoid.AutoRotate = false
+
+			local move = humanoid.MoveDirection * Settings.FlySpeed
+			local vertical = 0
+
+			if flyUpHeld or UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+				vertical += Settings.FlySpeed
+			end
+			if flyDownHeld or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+				vertical -= Settings.FlySpeed
+			end
+
+			bv.Velocity = Vector3.new(move.X, vertical, move.Z)
+			bg.CFrame = CFrame.lookAt(root.Position, root.Position + workspace.CurrentCamera.CFrame.LookVector)
+		end
+	else
+		flyUpButton.Visible = false
+		flyDownButton.Visible = false
+
+		if humanoid then
+			humanoid.PlatformStand = false
+			humanoid.AutoRotate = true
+		end
+
+		if root then
+			local bv = root:FindFirstChild("HoaiHubFlyVelocity")
+			local bg = root:FindFirstChild("HoaiHubFlyGyro")
+			if bv then bv:Destroy() end
+			if bg then bg:Destroy() end
+		end
+	end
+
+	-- Speed / Jump / NoClip
+	if humanoid then
+		humanoid.WalkSpeed = Settings.Speed and Settings.WalkSpeed or 16
+		humanoid.UseJumpPower = true
+		humanoid.JumpPower = Settings.Jump and Settings.JumpPower or 50
+	end
+
+	if Settings.NoClip then
+		setCharacterCollision(false)
+	else
+		setCharacterCollision(true)
+	end
+
+	-- ESP
+	if Settings.PlayerESP then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= player then
+				ensurePlayerESP(plr)
+			end
+		end
+
+		for targetPlayer, data in pairs(playerESP) do
+			local char = targetPlayer.Character
+			local targetRoot = char and char:FindFirstChild("HumanoidRootPart")
+			local targetHum = char and char:FindFirstChildOfClass("Humanoid")
+
+			if not char or not targetRoot or not targetHum or targetHum.Health <= 0 then
+				removePlayerESP(targetPlayer)
+			else
+				data.Highlight.Adornee = char
+				data.Billboard.Adornee = targetRoot
+
+				local distance = 0
+				if root then
+					distance = (root.Position - targetRoot.Position).Magnitude
+				end
+
+				data.Text.Text = string.format(
+					"%s\nHP: %.0f | %.0f studs",
+					targetPlayer.DisplayName,
+					targetHum.Health,
+					distance
+				)
+			end
+		end
+	else
+		clearAllPlayerESP()
+	end
+
+	-- Optimize / Remove Effects
+	refreshOptimizeState()
+end)
+
+
+--==================================================
+-- FINALIZE
+--==================================================
+
+if player.Character then
+	onCharacterAdded(player.Character)
+end
+
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- make sure tabs exist with correct initial state
+for pageName, page in pairs(pages) do
+	page.Visible = (pageName == "Home")
+end
+for pageName, btn in pairs(tabs) do
+	btn.BackgroundColor3 = (pageName == "Home") and Color3.fromRGB(95, 45, 150) or Color3.fromRGB(30, 27, 39)
+end
+
+print("Hoai Hub loaded - Studio/Admin test version")
