@@ -1391,3 +1391,84 @@ print("====================================")
 print("HOAI HUB - FULL VERSION LOADED")
 print("PART 1 + PART 2 + PART 3")
 print("====================================")
+--==================================================
+-- HOAI HUB - INVISIBLE SERVER
+-- Đặt trong ServerScriptService
+--==================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local remote = ReplicatedStorage:FindFirstChild("HoaiInvisibleEvent")
+
+if not remote then
+	remote = Instance.new("RemoteEvent")
+	remote.Name = "HoaiInvisibleEvent"
+	remote.Parent = ReplicatedStorage
+end
+
+local invisibleState = {}
+
+local function setInvisible(player, enabled)
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	invisibleState[player] = enabled
+
+	for _, obj in ipairs(character:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			if obj.Name == "HumanoidRootPart" then
+				obj.Transparency = 1
+			else
+				obj.Transparency = enabled and 1 or 0
+			end
+
+		elseif obj:IsA("Decal") then
+			obj.Transparency = enabled and 1 or 0
+
+		elseif obj:IsA("ParticleEmitter")
+			or obj:IsA("Trail")
+			or obj:IsA("Beam") then
+
+			obj.Enabled = not enabled
+		end
+	end
+end
+
+remote.OnServerEvent:Connect(function(player, enabled)
+	if typeof(enabled) ~= "boolean" then
+		return
+	end
+
+	setInvisible(player, enabled)
+end)
+
+local function setupCharacter(player, character)
+	task.wait(0.5)
+
+	if invisibleState[player] then
+		setInvisible(player, true)
+	end
+end
+
+local function setupPlayer(player)
+	player.CharacterAdded:Connect(function(character)
+		setupCharacter(player, character)
+	end)
+
+	if player.Character then
+		setupCharacter(player, player.Character)
+	end
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+
+for _, player in ipairs(Players:GetPlayers()) do
+	setupPlayer(player)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	invisibleState[player] = nil
+end)
