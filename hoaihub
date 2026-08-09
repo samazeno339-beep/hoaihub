@@ -1130,3 +1130,462 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 print("[Hoai Hub] Revised ALL PARTS loaded successfully.")
+--========================================================--
+-- HOAI HUB - PART 5/5
+-- UI CUSTOMIZATION / UI SCALE
+--========================================================--
+
+local UserInputService = game:GetService("UserInputService")
+
+--========================================================--
+-- STATE
+--========================================================--
+
+State = State or {}
+
+State.UIScalePercent = State.UIScalePercent or 85
+
+--========================================================--
+-- KIỂM TRA UIScale
+--========================================================--
+
+local UIScaleObject = MainWindow:FindFirstChildOfClass("UIScale")
+
+if not UIScaleObject then
+    UIScaleObject = Instance.new("UIScale")
+    UIScaleObject.Scale = 0.85
+    UIScaleObject.Parent = MainWindow
+end
+
+--========================================================--
+-- TITLE
+--========================================================--
+
+local ScaleTitle = Instance.new("TextLabel")
+
+ScaleTitle.Name = "UIScaleTitle"
+ScaleTitle.Size = UDim2.new(1, 0, 0, 34)
+
+ScaleTitle.BackgroundTransparency = 1
+
+ScaleTitle.Text = "UI SCALE"
+
+ScaleTitle.TextColor3 = CONFIG.Colors
+    and CONFIG.Colors.Text
+    or Color3.fromRGB(245, 245, 250)
+
+ScaleTitle.TextSize = 14
+
+ScaleTitle.Font = Enum.Font.GothamBold
+
+ScaleTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+ScaleTitle.Parent = SettingsPage
+
+--========================================================--
+-- DESCRIPTION
+--========================================================--
+
+local ScaleDescription = Instance.new("TextLabel")
+
+ScaleDescription.Name = "UIScaleDescription"
+
+ScaleDescription.Size = UDim2.new(1, 0, 0, 42)
+
+ScaleDescription.BackgroundTransparency = 1
+
+ScaleDescription.Text =
+    "Điều chỉnh kích cỡ toàn bộ giao diện từ 50% đến 150%.\n" ..
+    "Mặc định: 85%."
+
+ScaleDescription.TextColor3 = CONFIG.SubText
+
+ScaleDescription.TextSize = 11
+
+ScaleDescription.Font = Enum.Font.Gotham
+
+ScaleDescription.TextWrapped = true
+
+ScaleDescription.TextXAlignment = Enum.TextXAlignment.Left
+
+ScaleDescription.TextYAlignment = Enum.TextYAlignment.Top
+
+ScaleDescription.Parent = SettingsPage
+
+--========================================================--
+-- VALUE
+--========================================================--
+
+local ScaleValue = Instance.new("TextLabel")
+
+ScaleValue.Name = "UIScaleValue"
+
+ScaleValue.Size = UDim2.new(1, 0, 0, 30)
+
+ScaleValue.BackgroundTransparency = 1
+
+ScaleValue.Text = "UI Scale: 85%"
+
+ScaleValue.TextColor3 = CONFIG.Text
+
+ScaleValue.TextSize = 13
+
+ScaleValue.Font = Enum.Font.GothamBold
+
+ScaleValue.TextXAlignment = Enum.TextXAlignment.Left
+
+ScaleValue.Parent = SettingsPage
+
+--========================================================--
+-- SLIDER
+--========================================================--
+
+local ScaleBar = Instance.new("Frame")
+
+ScaleBar.Name = "UIScaleBar"
+
+ScaleBar.Size = UDim2.new(1, 0, 0, 10)
+
+ScaleBar.BackgroundColor3 = CONFIG.Button
+
+ScaleBar.BorderSizePixel = 0
+
+ScaleBar.Parent = SettingsPage
+
+local BarCorner = Instance.new("UICorner")
+
+BarCorner.CornerRadius = UDim.new(1, 0)
+
+BarCorner.Parent = ScaleBar
+
+--========================================================--
+-- SLIDER FILL
+--========================================================--
+
+local ScaleFill = Instance.new("Frame")
+
+ScaleFill.Name = "Fill"
+
+ScaleFill.Size = UDim2.fromScale(0.35, 1)
+
+ScaleFill.BackgroundColor3 = CONFIG.Accent
+
+ScaleFill.BorderSizePixel = 0
+
+ScaleFill.Parent = ScaleBar
+
+local FillCorner = Instance.new("UICorner")
+
+FillCorner.CornerRadius = UDim.new(1, 0)
+
+FillCorner.Parent = ScaleFill
+
+--========================================================--
+-- SLIDER KNOB
+--========================================================--
+
+local ScaleKnob = Instance.new("TextButton")
+
+ScaleKnob.Name = "Knob"
+
+ScaleKnob.Size = UDim2.fromOffset(22, 22)
+
+ScaleKnob.Position =
+    UDim2.new(0.35, -11, 0.5, -11)
+
+ScaleKnob.BackgroundColor3 = CONFIG.Accent
+
+ScaleKnob.BorderSizePixel = 0
+
+ScaleKnob.Text = ""
+
+ScaleKnob.AutoButtonColor = false
+
+ScaleKnob.ZIndex = 10
+
+ScaleKnob.Parent = ScaleBar
+
+local KnobCorner = Instance.new("UICorner")
+
+KnobCorner.CornerRadius = UDim.new(1, 0)
+
+KnobCorner.Parent = ScaleKnob
+
+--========================================================--
+-- BUTTON ROW
+--========================================================--
+
+local ScaleButtonRow = Instance.new("Frame")
+
+ScaleButtonRow.Name = "ScaleButtonRow"
+
+ScaleButtonRow.Size = UDim2.new(1, 0, 0, 40)
+
+ScaleButtonRow.BackgroundTransparency = 1
+
+ScaleButtonRow.Parent = SettingsPage
+
+--========================================================--
+-- MINUS
+--========================================================--
+
+local ScaleMinus = Instance.new("TextButton")
+
+ScaleMinus.Name = "ScaleMinus"
+
+ScaleMinus.Size = UDim2.new(0.48, 0, 1, 0)
+
+ScaleMinus.BackgroundColor3 = CONFIG.Button
+
+ScaleMinus.Text = "−"
+
+ScaleMinus.TextColor3 = CONFIG.Text
+
+ScaleMinus.TextSize = 20
+
+ScaleMinus.Font = Enum.Font.GothamBold
+
+ScaleMinus.AutoButtonColor = false
+
+ScaleMinus.Parent = ScaleButtonRow
+
+local MinusCorner = Instance.new("UICorner")
+
+MinusCorner.CornerRadius = UDim.new(0, 8)
+
+MinusCorner.Parent = ScaleMinus
+
+--========================================================--
+-- PLUS
+--========================================================--
+
+local ScalePlus = Instance.new("TextButton")
+
+ScalePlus.Name = "ScalePlus"
+
+ScalePlus.Size = UDim2.new(0.48, 0, 1, 0)
+
+ScalePlus.Position = UDim2.new(0.52, 0, 0, 0)
+
+ScalePlus.BackgroundColor3 = CONFIG.Button
+
+ScalePlus.Text = "+"
+
+ScalePlus.TextColor3 = CONFIG.Text
+
+ScalePlus.TextSize = 20
+
+ScalePlus.Font = Enum.Font.GothamBold
+
+ScalePlus.AutoButtonColor = false
+
+ScalePlus.Parent = ScaleButtonRow
+
+local PlusCorner = Instance.new("UICorner")
+
+PlusCorner.CornerRadius = UDim.new(0, 8)
+
+PlusCorner.Parent = ScalePlus
+
+--========================================================--
+-- RESET
+--========================================================--
+
+local ScaleReset = Instance.new("TextButton")
+
+ScaleReset.Name = "ScaleReset"
+
+ScaleReset.Size = UDim2.new(1, 0, 0, 40)
+
+ScaleReset.BackgroundColor3 = CONFIG.Accent
+
+ScaleReset.Text = "Reset UI Scale (85%)"
+
+ScaleReset.TextColor3 = Color3.new(1, 1, 1)
+
+ScaleReset.TextSize = 13
+
+ScaleReset.Font = Enum.Font.GothamBold
+
+ScaleReset.AutoButtonColor = false
+
+ScaleReset.Parent = SettingsPage
+
+local ResetCorner = Instance.new("UICorner")
+
+ResetCorner.CornerRadius = UDim.new(0, 8)
+
+ResetCorner.Parent = ScaleReset
+
+--========================================================--
+-- APPLY SCALE
+--========================================================--
+
+local function ApplyUIScale(percent)
+
+    percent = math.clamp(
+        math.floor(percent + 0.5),
+        50,
+        150
+    )
+
+    State.UIScalePercent = percent
+
+    UIScaleObject.Scale = percent / 100
+
+    ScaleValue.Text =
+        "UI Scale: " .. tostring(percent) .. "%"
+
+    -- 50% = 0
+    -- 100% = 0.5
+    -- 150% = 1
+
+    local alpha =
+        (percent - 50) / 100
+
+    ScaleFill.Size =
+        UDim2.fromScale(alpha, 1)
+
+    ScaleKnob.Position =
+        UDim2.new(
+            alpha,
+            -11,
+            0.5,
+            -11
+        )
+end
+
+--========================================================--
+-- SLIDER POSITION
+--========================================================--
+
+local function SetScaleFromX(x)
+
+    local barPosition =
+        ScaleBar.AbsolutePosition.X
+
+    local barWidth =
+        ScaleBar.AbsoluteSize.X
+
+    if barWidth <= 0 then
+        return
+    end
+
+    local alpha =
+        math.clamp(
+            (x - barPosition) / barWidth,
+            0,
+            1
+        )
+
+    local percent =
+        50 + alpha * 100
+
+    ApplyUIScale(percent)
+end
+
+--========================================================--
+-- DRAGGING
+--========================================================--
+
+local draggingScale = false
+
+ScaleKnob.InputBegan:Connect(function(input)
+
+    if input.UserInputType ==
+        Enum.UserInputType.MouseButton1
+        or input.UserInputType ==
+        Enum.UserInputType.Touch then
+
+        draggingScale = true
+
+        SetScaleFromX(input.Position.X)
+    end
+
+end)
+
+ScaleBar.InputBegan:Connect(function(input)
+
+    if input.UserInputType ==
+        Enum.UserInputType.MouseButton1
+        or input.UserInputType ==
+        Enum.UserInputType.Touch then
+
+        draggingScale = true
+
+        SetScaleFromX(input.Position.X)
+    end
+
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+    if not draggingScale then
+        return
+    end
+
+    if input.UserInputType ==
+        Enum.UserInputType.MouseMovement
+        or input.UserInputType ==
+        Enum.UserInputType.Touch then
+
+        SetScaleFromX(input.Position.X)
+    end
+
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+
+    if input.UserInputType ==
+        Enum.UserInputType.MouseButton1
+        or input.UserInputType ==
+        Enum.UserInputType.Touch then
+
+        draggingScale = false
+    end
+
+end)
+
+--========================================================--
+-- MINUS BUTTON
+--========================================================--
+
+ScaleMinus.MouseButton1Click:Connect(function()
+
+    ApplyUIScale(
+        State.UIScalePercent - 5
+    )
+
+end)
+
+--========================================================--
+-- PLUS BUTTON
+--========================================================--
+
+ScalePlus.MouseButton1Click:Connect(function()
+
+    ApplyUIScale(
+        State.UIScalePercent + 5
+    )
+
+end)
+
+--========================================================--
+-- RESET BUTTON
+--========================================================--
+
+ScaleReset.MouseButton1Click:Connect(function()
+
+    ApplyUIScale(85)
+
+end)
+
+--========================================================--
+-- DEFAULT
+--========================================================--
+
+ApplyUIScale(
+    State.UIScalePercent
+)
+
+print("[Hoai Hub] PART 5 - UI Scale loaded.")
