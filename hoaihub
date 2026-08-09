@@ -1966,3 +1966,363 @@ RunService.Heartbeat:Connect(function()
 end)
 
 print("[Hoai Hub] Clean full package loaded successfully.")
+--========================================================--
+-- PART 5: FLY FIX / CLEAN CONTROLLER
+-- Thay toàn bộ logic Fly cũ bằng phần này.
+-- Không tạo thêm Fly Toggle.
+-- Dùng State.FlyEnabled, State.FlySpeed,
+-- FlyOverlay, FlyUpButton, FlyDownButton đã có sẵn.
+--========================================================--
+
+local FlyFixController = {
+	Connection = nil,
+	Attachment = nil,
+	LinearVelocity = nil,
+	AlignOrientation = nil,
+	CharacterConnection = nil,
+}
+
+local function FlyFixCleanup()
+	if FlyFixController.Connection then
+		FlyFixController.Connection:Disconnect()
+		FlyFixController.Connection = nil
+	end
+
+	if FlyFixController.LinearVelocity then
+		FlyFixController.LinearVelocity:Destroy()
+		FlyFixController.LinearVelocity = nil
+	end
+
+	if FlyFixController.AlignOrientation then
+		FlyFixController.AlignOrientation:Destroy()
+		FlyFixController.AlignOrientation = nil
+	end
+
+	if FlyFixController.Attachment then
+		FlyFixController.Attachment:Destroy()
+		FlyFixController.Attachment = nil
+	end
+
+	local character = LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+	if humanoid then
+		humanoid.AutoRotate = true
+		humanoid.PlatformStand = false
+	end
+
+	if FlyOverlay then
+		FlyOverlay.Visible = false
+	end
+end
+
+local function FlyFixGetCharacter()
+	local character = LocalPlayer.Character
+	if not character then
+		return nil, nil, nil
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+
+	if not humanoid or not root then
+		return character, nil, nil
+	end
+
+	return character, humanoid, root
+end
+
+local function FlyFixStop()
+	State.FlyEnabled = false
+	State.FlyUp = false
+	State.FlyDown = false
+
+	FlyFixCleanup()
+end
+
+local function FlyFixStart()
+	FlyFixCleanup()
+
+	local character, humanoid, root = FlyFixGetCharacter()
+
+	if not character or not humanoid or not root then
+		State.FlyEnabled = false
+		return
+	end
+
+	State.FlyEnabled = true
+
+	humanoid.AutoRotate = false
+
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "HoaiFlyFixAttachment"
+	attachment.Parent = root
+
+	FlyFixController.Attachment = attachment
+
+	local velocity = Instance.new("LinearVelocity")
+	velocity.Name = "HoaiFlyFixVelocity"
+	velocity.Attachment0 = attachment
+	velocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	velocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	velocity.MaxForce = math.huge
+	velocity.VectorVelocity = Vector3.zero
+	velocity.Parent = root
+
+	FlyFixController.LinearVelocity = velocity
+
+	local orientation = Instance.new("AlignOrientation")
+	orientation.Name = "HoaiFlyFixOrientation"
+	orientation.Attachment0 = attachment
+	orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	orientation.MaxTorque = math.huge
+	orientation.Responsiveness = 25
+	orientation.RigidityEnabled = false
+	orientation.Parent = root
+
+	FlyFixController.AlignOrientation = orientation
+
+	FlyFixController.Connection = RunService.Heartbeat:Connect(function(dt)
+		if not State.FlyEnabled then
+			FlyFixStop()
+			return
+		end
+
+		local currentCharacter, currentHumanoid, currentRoot =
+			FlyFixGetCharacter()
+
+		local camera = Workspace.CurrentCamera
+
+		if not currentCharacter
+			or not currentHumanoid
+			or not currentRoot
+			or not camera
+			or not velocity.Parent then
+
+			return
+		end
+
+		--================================================--
+		-- CAMERA DIRECTION
+		--================================================--
+
+		local cameraLook = camera.CFrame.LookVector
+		local cameraRight = camera.CFrame.RightVector
+
+		local forward = Vector3.new(
+			cameraLook.X,
+			0,
+			cameraLook.Z
+		)
+
+		local right = Vector3.new(
+			cameraRight.X,
+			0,
+			cameraRight.Z
+		)
+
+		if forward.Magnitude > 0.001 then
+			forward = forward.Unit
+		else
+			forward = Vector3.zero
+		end
+
+		if right.Magnitude > 0.001 then
+			right = right.Unit
+		else
+			right = Vector3.zero
+		end
+
+		--================================================--
+		-- MOVEMENT INPUT
+		--================================================--
+
+		local movement = Vector3.zero
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+			movement += forward
+		end
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+			movement -= forward
+		end
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+			movement += right
+		end
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+			movement -= right
+		end
+
+		-- UP
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space)
+			or State.FlyUp then
+
+			movement += Vector3.yAxis
+		end
+
+		-- DOWN
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+			or UserInputService:IsKeyDown(Enum.KeyCode.C)
+			or State.FlyDown then
+
+			movement -= Vector3.yAxis
+		end
+
+		if movement.Magnitude > 1 then
+			movement = movement.Unit
+		end
+
+		--================================================--
+		-- VELOCITY
+		--================================================--
+
+		local speed = Clamp(
+			tonumber(State.FlySpeed) or 50,
+			1,
+			1000
+		)
+
+		local targetVelocity = movement * speed
+
+		local smoothAlpha = Clamp(
+			dt * 15,
+			0,
+			1
+		)
+
+		velocity.VectorVelocity =
+			velocity.VectorVelocity:Lerp(
+				targetVelocity,
+				smoothAlpha
+			)
+
+		--================================================--
+		-- FACE CAMERA DIRECTION
+		--================================================--
+
+		local flatLook = Vector3.new(
+			cameraLook.X,
+			0,
+			cameraLook.Z
+		)
+
+		if flatLook.Magnitude > 0.001 then
+			orientation.CFrame = CFrame.lookAt(
+				Vector3.zero,
+				flatLook.Unit
+			)
+		end
+
+		--================================================--
+		-- MOBILE UI
+		--================================================--
+
+		if FlyOverlay then
+			FlyOverlay.Visible =
+				State.FlyEnabled
+				and UserInputService.TouchEnabled
+		end
+	end)
+end
+
+local function FlyFixSetEnabled(enabled)
+	enabled = enabled and true or false
+
+	if enabled then
+		FlyFixStart()
+	else
+		FlyFixStop()
+	end
+end
+
+--========================================================--
+-- MOBILE UP / DOWN
+--========================================================--
+
+if FlyUpButton then
+
+	FlyUpButton.MouseButton1Down:Connect(function()
+		if State.FlyEnabled then
+			State.FlyUp = true
+		end
+	end)
+
+	FlyUpButton.MouseButton1Up:Connect(function()
+		State.FlyUp = false
+	end)
+
+	FlyUpButton.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+			State.FlyUp = false
+		end
+	end)
+end
+
+if FlyDownButton then
+
+	FlyDownButton.MouseButton1Down:Connect(function()
+		if State.FlyEnabled then
+			State.FlyDown = true
+		end
+	end)
+
+	FlyDownButton.MouseButton1Up:Connect(function()
+		State.FlyDown = false
+	end)
+
+	FlyDownButton.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+			State.FlyDown = false
+		end
+	end)
+end
+
+--========================================================--
+-- RESPAWN SUPPORT
+--========================================================--
+
+if FlyFixController.CharacterConnection then
+	FlyFixController.CharacterConnection:Disconnect()
+end
+
+FlyFixController.CharacterConnection =
+	LocalPlayer.CharacterAdded:Connect(function()
+		FlyFixCleanup()
+
+		task.wait(0.5)
+
+		if State.FlyEnabled then
+			FlyFixStart()
+		end
+	end)
+
+--========================================================--
+-- EXTERNAL API
+--========================================================--
+
+Hub.SetFly = FlyFixSetEnabled
+Hub.StartFly = FlyFixStart
+Hub.StopFly = FlyFixStop
+
+--========================================================--
+-- CLEANUP KHI GUI BỊ DESTROY
+--========================================================--
+
+Gui.AncestryChanged:Connect(function(_, parent)
+	if not parent then
+		FlyFixStop()
+
+		if FlyFixController.CharacterConnection then
+			FlyFixController.CharacterConnection:Disconnect()
+			FlyFixController.CharacterConnection = nil
+		end
+	end
+end)
+
+print("[Hoai Hub] Part 5 Fly Fix loaded.")
