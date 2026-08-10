@@ -1,0 +1,2291 @@
+--============================================================--
+--        HOÀI LÀM SCRIPT - PART 1/4                        --
+--                 UI + CORE CONFIG                          --
+--============================================================--
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+--============================================================--
+-- CONFIG
+--============================================================--
+
+local CONFIG = {
+	Name = "hoài làm script",
+	Version = "1.0",
+
+	-- Logo Roblox
+	Logo = "rbxassetid://104401682707261",
+
+	-- Phím bật/tắt UI
+	ToggleKey = Enum.KeyCode.RightControl,
+
+	-- Kích thước UI
+	Width = 720,
+	Height = 440,
+
+	-- Màu chủ đạo
+	Background = Color3.fromRGB(12, 8, 20),
+	Panel = Color3.fromRGB(21, 14, 32),
+	Panel2 = Color3.fromRGB(29, 19, 44),
+
+	Purple = Color3.fromRGB(155, 92, 255),
+	PurpleLight = Color3.fromRGB(190, 135, 255),
+
+	Text = Color3.fromRGB(245, 240, 255),
+	SubText = Color3.fromRGB(165, 150, 185),
+
+	Success = Color3.fromRGB(100, 255, 170),
+	Danger = Color3.fromRGB(255, 90, 120),
+}
+
+--============================================================--
+-- CORE STATE
+--============================================================--
+
+local State = {
+	UIVisible = true,
+	Minimized = false,
+
+	-- Aim
+	AimEnabled = false,
+
+	-- ESP
+	PlayerESP = false,
+	NPCESP = false,
+
+	-- Farm
+	AutoQuest = false,
+	AutoFarm = false,
+
+	-- Movement
+	SpeedEnabled = false,
+	JumpEnabled = false,
+	FlyEnabled = false,
+	NoClip = false,
+
+	-- Teleport
+	FollowTarget = false,
+}
+
+--============================================================--
+-- SHARED DATA
+--============================================================--
+
+_G.HoaiLamScript = _G.HoaiLamScript or {}
+
+_G.HoaiLamScript.State = State
+_G.HoaiLamScript.Config = CONFIG
+
+--============================================================--
+-- HELPERS
+--============================================================--
+
+local function CreateCorner(parent, radius)
+	local corner = Instance.new("UICorner")
+
+	corner.CornerRadius =
+		UDim.new(0, radius or 10)
+
+	corner.Parent = parent
+
+	return corner
+end
+
+local function CreateStroke(
+	parent,
+	color,
+	transparency,
+	thickness
+)
+	local stroke = Instance.new("UIStroke")
+
+	stroke.Color =
+		color or CONFIG.Purple
+
+	stroke.Transparency =
+		transparency or 0.5
+
+	stroke.Thickness =
+		thickness or 1
+
+	stroke.Parent = parent
+
+	return stroke
+end
+
+local function Tween(
+	object,
+	properties,
+	duration
+)
+	local tween = TweenService:Create(
+		object,
+
+		TweenInfo.new(
+			duration or 0.2,
+			Enum.EasingStyle.Quart,
+			Enum.EasingDirection.Out
+		),
+
+		properties
+	)
+
+	tween:Play()
+
+	return tween
+end
+
+local function FormatTime(seconds)
+	seconds = math.max(
+		0,
+		math.floor(seconds)
+	)
+
+	local hours =
+		math.floor(seconds / 3600)
+
+	local minutes =
+		math.floor(
+			(seconds % 3600) / 60
+		)
+
+	local secs =
+		seconds % 60
+
+	return string.format(
+		"%02d:%02d:%02d",
+		hours,
+		minutes,
+		secs
+	)
+end
+
+local function GetPing()
+	local success, result =
+		pcall(function()
+
+			local network =
+				Stats.Network
+
+			local serverStats =
+				network:FindFirstChild(
+					"ServerStatsItem"
+				)
+
+			if serverStats then
+
+				local ping =
+					serverStats:FindFirstChild(
+						"Data Ping"
+					)
+
+				if ping then
+					return ping:GetValueString()
+				end
+			end
+
+			return "N/A"
+		end)
+
+	if success then
+		return result
+	end
+
+	return "N/A"
+end
+
+--============================================================--
+-- SCREEN GUI
+--============================================================--
+
+local Gui = Instance.new("ScreenGui")
+
+Gui.Name =
+	"HoaiLamScriptUI"
+
+Gui.ResetOnSpawn =
+	false
+
+Gui.IgnoreGuiInset =
+	true
+
+Gui.ZIndexBehavior =
+	Enum.ZIndexBehavior.Sibling
+
+Gui.DisplayOrder =
+	999
+
+Gui.Parent =
+	PlayerGui
+
+_G.HoaiLamScript.Gui =
+	Gui
+
+--============================================================--
+-- MAIN WINDOW
+--============================================================--
+
+local Main = Instance.new("Frame")
+
+Main.Name =
+	"Main"
+
+Main.Size =
+	UDim2.fromOffset(
+		CONFIG.Width,
+		CONFIG.Height
+	)
+
+Main.Position =
+	UDim2.new(
+		0.5,
+		-CONFIG.Width / 2,
+		0.5,
+		-CONFIG.Height / 2
+	)
+
+Main.BackgroundColor3 =
+	CONFIG.Background
+
+Main.BorderSizePixel =
+	0
+
+Main.ClipsDescendants =
+	true
+
+Main.Parent =
+	Gui
+
+CreateCorner(Main, 16)
+
+CreateStroke(
+	Main,
+	CONFIG.Purple,
+	0.45,
+	1
+)
+
+_G.HoaiLamScript.Main =
+	Main
+
+--============================================================--
+-- TOP BAR
+--============================================================--
+
+local Top = Instance.new("Frame")
+
+Top.Name =
+	"TopBar"
+
+Top.Size =
+	UDim2.new(
+		1,
+		0,
+		0,
+		64
+	)
+
+Top.BackgroundColor3 =
+	CONFIG.Panel
+
+Top.BorderSizePixel =
+	0
+
+Top.Parent =
+	Main
+
+CreateCorner(Top, 16)
+
+--============================================================--
+-- LOGO
+--============================================================--
+
+local Logo = Instance.new("ImageLabel")
+
+Logo.Name =
+	"Logo"
+
+Logo.BackgroundTransparency =
+	1
+
+Logo.Position =
+	UDim2.fromOffset(
+		15,
+		9
+	)
+
+Logo.Size =
+	UDim2.fromOffset(
+		46,
+		46
+	)
+
+Logo.Image =
+	CONFIG.Logo
+
+Logo.ScaleType =
+	Enum.ScaleType.Fit
+
+Logo.Parent =
+	Top
+
+CreateCorner(Logo, 12)
+
+--============================================================--
+-- TITLE
+--============================================================--
+
+local Title = Instance.new("TextLabel")
+
+Title.Name =
+	"Title"
+
+Title.BackgroundTransparency =
+	1
+
+Title.Position =
+	UDim2.fromOffset(
+		68,
+		8
+	)
+
+Title.Size =
+	UDim2.fromOffset(
+		330,
+		27
+	)
+
+Title.Text =
+	CONFIG.Name
+
+Title.TextColor3 =
+	CONFIG.Text
+
+Title.TextSize =
+	19
+
+Title.Font =
+	Enum.Font.GothamBold
+
+Title.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+Title.Parent =
+	Top
+
+local Subtitle = Instance.new("TextLabel")
+
+Subtitle.BackgroundTransparency =
+	1
+
+Subtitle.Position =
+	UDim2.fromOffset(
+		68,
+		35
+	)
+
+Subtitle.Size =
+	UDim2.fromOffset(
+		350,
+		18
+	)
+
+Subtitle.Text =
+	"Developer Control Panel  •  v"
+		.. CONFIG.Version
+
+Subtitle.TextColor3 =
+	CONFIG.SubText
+
+Subtitle.TextSize =
+	11
+
+Subtitle.Font =
+	Enum.Font.Gotham
+
+Subtitle.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+Subtitle.Parent =
+	Top
+
+--============================================================--
+-- EXPORT HELPERS
+--============================================================--
+
+_G.HoaiLamScript.CreateCorner =
+	CreateCorner
+
+_G.HoaiLamScript.CreateStroke =
+	CreateStroke
+
+_G.HoaiLamScript.Tween =
+	Tween
+
+_G.HoaiLamScript.FormatTime =
+	FormatTime
+
+_G.HoaiLamScript.GetPing =
+	GetPing
+
+print(
+	"[Hoài Làm Script] Part 1/4 loaded."
+)
+--============================================================--
+--        HOÀI LÀM SCRIPT - PART 2/4                        --
+--              SIDEBAR + TAB + PAGE SYSTEM                  --
+--============================================================--
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local Player = Players.LocalPlayer
+
+--============================================================--
+-- GET CORE FROM PART 1
+--============================================================--
+
+local Core = _G.HoaiLamScript
+
+if not Core then
+	warn("[Hoài Làm Script] Part 1 chưa được chạy!")
+	return
+end
+
+local CONFIG = Core.Config
+local Main = Core.Main
+local Top = Main:FindFirstChild("TopBar")
+
+if not Main or not Top then
+	warn("[Hoài Làm Script] Không tìm thấy Main/TopBar từ Part 1!")
+	return
+end
+
+local function Tween(object, properties, duration)
+	local tween = TweenService:Create(
+		object,
+		TweenInfo.new(
+			duration or 0.2,
+			Enum.EasingStyle.Quart,
+			Enum.EasingDirection.Out
+		),
+		properties
+	)
+
+	tween:Play()
+
+	return tween
+end
+
+local function CreateCorner(parent, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius or 10)
+	corner.Parent = parent
+	return corner
+end
+
+--============================================================--
+-- WINDOW BUTTONS
+--============================================================--
+
+local Minimize = Instance.new("TextButton")
+
+Minimize.Name =
+	"Minimize"
+
+Minimize.Size =
+	UDim2.fromOffset(
+		35,
+		35
+	)
+
+Minimize.Position =
+	UDim2.new(
+		1,
+		-82,
+		0,
+		14
+	)
+
+Minimize.BackgroundColor3 =
+	CONFIG.Panel2
+
+Minimize.BorderSizePixel =
+	0
+
+Minimize.Text =
+	"—"
+
+Minimize.TextColor3 =
+	CONFIG.Text
+
+Minimize.TextSize =
+	18
+
+Minimize.Font =
+	Enum.Font.GothamBold
+
+Minimize.Parent =
+	Top
+
+CreateCorner(Minimize, 9)
+
+--============================================================--
+-- CLOSE BUTTON
+--============================================================--
+
+local Close = Instance.new("TextButton")
+
+Close.Name =
+	"Close"
+
+Close.Size =
+	UDim2.fromOffset(
+		35,
+		35
+	)
+
+Close.Position =
+	UDim2.new(
+		1,
+		-42,
+		0,
+		14
+	)
+
+Close.BackgroundColor3 =
+	Color3.fromRGB(
+		60,
+		25,
+		65
+	)
+
+Close.BorderSizePixel =
+	0
+
+Close.Text =
+	"×"
+
+Close.TextColor3 =
+	CONFIG.Text
+
+Close.TextSize =
+	18
+
+Close.Font =
+	Enum.Font.GothamBold
+
+Close.Parent =
+	Top
+
+CreateCorner(Close, 9)
+
+--============================================================--
+-- SIDEBAR
+--============================================================--
+
+local Sidebar = Instance.new("Frame")
+
+Sidebar.Name =
+	"Sidebar"
+
+Sidebar.Position =
+	UDim2.fromOffset(
+		12,
+		76
+	)
+
+Sidebar.Size =
+	UDim2.new(
+		0,
+		170,
+		1,
+		-88
+	)
+
+Sidebar.BackgroundColor3 =
+	CONFIG.Panel
+
+Sidebar.BorderSizePixel =
+	0
+
+Sidebar.Parent =
+	Main
+
+CreateCorner(
+	Sidebar,
+	13
+)
+
+local SidePadding =
+	Instance.new("UIPadding")
+
+SidePadding.PaddingTop =
+	UDim.new(
+		0,
+		10
+	)
+
+SidePadding.PaddingLeft =
+	UDim.new(
+		0,
+		8
+	)
+
+SidePadding.PaddingRight =
+	UDim.new(
+		0,
+		8
+	)
+
+SidePadding.Parent =
+	Sidebar
+
+local SideLayout =
+	Instance.new("UIListLayout")
+
+SideLayout.Padding =
+	UDim.new(
+		0,
+		6
+	)
+
+SideLayout.SortOrder =
+	Enum.SortOrder.LayoutOrder
+
+SideLayout.Parent =
+	Sidebar
+
+--============================================================--
+-- CONTENT
+--============================================================--
+
+local Content = Instance.new("Frame")
+
+Content.Name =
+	"Content"
+
+Content.Position =
+	UDim2.fromOffset(
+		194,
+		76
+	)
+
+Content.Size =
+	UDim2.new(
+		1,
+		-206,
+		1,
+		-88
+	)
+
+Content.BackgroundColor3 =
+	CONFIG.Panel
+
+Content.BorderSizePixel =
+	0
+
+Content.ClipsDescendants =
+	true
+
+Content.Parent =
+	Main
+
+CreateCorner(
+	Content,
+	13
+)
+
+--============================================================--
+-- TAB / PAGE STORAGE
+--============================================================--
+
+local Tabs = {}
+local Pages = {}
+
+local CurrentTab = nil
+
+--============================================================--
+-- CREATE PAGE
+--============================================================--
+
+local function CreatePage(name)
+
+	local page =
+		Instance.new("ScrollingFrame")
+
+	page.Name =
+		name
+
+	page.Size =
+		UDim2.new(
+			1,
+			-20,
+			1,
+			-20
+		)
+
+	page.Position =
+		UDim2.fromOffset(
+			10,
+			10
+		)
+
+	page.BackgroundTransparency =
+		1
+
+	page.BorderSizePixel =
+		0
+
+	page.ScrollBarThickness =
+		3
+
+	page.ScrollBarImageColor3 =
+		CONFIG.Purple
+
+	page.CanvasSize =
+		UDim2.new(
+			0,
+			0,
+			0,
+			0
+		)
+
+	page.Visible =
+		false
+
+	page.Parent =
+		Content
+
+	local layout =
+		Instance.new("UIListLayout")
+
+	layout.Padding =
+		UDim.new(
+			0,
+			8
+		)
+
+	layout.SortOrder =
+		Enum.SortOrder.LayoutOrder
+
+	layout.Parent =
+		page
+
+	layout:GetPropertyChangedSignal(
+		"AbsoluteContentSize"
+	):Connect(function()
+
+		page.CanvasSize =
+			UDim2.fromOffset(
+				0,
+				layout.AbsoluteContentSize.Y + 20
+			)
+	end)
+
+	Pages[name] =
+		page
+
+	return page
+end
+
+--============================================================--
+-- SELECT TAB
+--============================================================--
+
+local function SelectTab(name)
+
+	CurrentTab =
+		name
+
+	for tabName, button in pairs(Tabs) do
+
+		local selected =
+			tabName == name
+
+		Tween(
+			button,
+			{
+				BackgroundColor3 =
+					selected
+					and CONFIG.Purple
+					or CONFIG.Panel
+			},
+			0.15
+		)
+
+		button.TextColor3 =
+			selected
+			and CONFIG.Text
+			or CONFIG.SubText
+
+		if Pages[tabName] then
+
+			Pages[tabName].Visible =
+				selected
+
+		end
+	end
+end
+
+--============================================================--
+-- CREATE TAB
+--============================================================--
+
+local function CreateTab(
+	name,
+	icon,
+	order
+)
+
+	local button =
+		Instance.new("TextButton")
+
+	button.Name =
+		name
+
+	button.Size =
+		UDim2.new(
+			1,
+			0,
+			0,
+			42
+		)
+
+	button.BackgroundColor3 =
+		CONFIG.Panel
+
+	button.BorderSizePixel =
+		0
+
+	button.Text =
+		icon .. "   " .. name
+
+	button.TextColor3 =
+		CONFIG.SubText
+
+	button.TextSize =
+		13
+
+	button.Font =
+		Enum.Font.GothamMedium
+
+	button.TextXAlignment =
+		Enum.TextXAlignment.Left
+
+	button.LayoutOrder =
+		order
+
+	button.Parent =
+		Sidebar
+
+	CreateCorner(
+		button,
+		9
+	)
+
+	Tabs[name] =
+		button
+
+	-- Hover
+	button.MouseEnter:Connect(function()
+
+		if CurrentTab ~= name then
+
+			Tween(
+				button,
+				{
+					BackgroundColor3 =
+						CONFIG.Panel2
+				},
+				0.12
+			)
+
+		end
+	end)
+
+	button.MouseLeave:Connect(function()
+
+		if CurrentTab ~= name then
+
+			Tween(
+				button,
+				{
+					BackgroundColor3 =
+						CONFIG.Panel
+				},
+				0.12
+			)
+
+		end
+	end)
+
+	-- Click
+	button.Activated:Connect(function()
+
+		SelectTab(name)
+
+	end)
+
+	return button
+end
+
+--============================================================--
+-- CREATE ALL PAGES
+--============================================================--
+
+local WelcomePage =
+	CreatePage(
+		"Welcome"
+	)
+
+local AimPage =
+	CreatePage(
+		"Aim"
+	)
+
+local ESPPage =
+	CreatePage(
+		"ESP"
+	)
+
+local FarmPage =
+	CreatePage(
+		"Farm"
+	)
+
+local MovementPage =
+	CreatePage(
+		"Movement"
+	)
+
+local TeleportPage =
+	CreatePage(
+		"Teleport"
+	)
+
+local SettingsPage =
+	CreatePage(
+		"Settings"
+	)
+
+--============================================================--
+-- CREATE ALL TABS
+--============================================================--
+
+CreateTab(
+	"Welcome",
+	"⌂",
+	1
+)
+
+CreateTab(
+	"Aim",
+	"◎",
+	2
+)
+
+CreateTab(
+	"ESP",
+	"◉",
+	3
+)
+
+CreateTab(
+	"Farm",
+	"◆",
+	4
+)
+
+CreateTab(
+	"Movement",
+	"➤",
+	5
+)
+
+CreateTab(
+	"Teleport",
+	"◇",
+	6
+)
+
+CreateTab(
+	"Settings",
+	"⚙",
+	7
+)
+
+--============================================================--
+-- EXPORT UI OBJECTS
+--============================================================--
+
+Core.Main =
+	Main
+
+Core.Top =
+	Top
+
+Core.Sidebar =
+	Sidebar
+
+Core.Content =
+	Content
+
+Core.Minimize =
+	Minimize
+
+Core.Close =
+	Close
+
+Core.Tabs =
+	Tabs
+
+Core.Pages =
+	Pages
+
+Core.SelectTab =
+	SelectTab
+
+Core.CreatePage =
+	CreatePage
+
+Core.CreateTab =
+	CreateTab
+
+Core.WelcomePage =
+	WelcomePage
+
+Core.AimPage =
+	AimPage
+
+Core.ESPPage =
+	ESPPage
+
+Core.FarmPage =
+	FarmPage
+
+Core.MovementPage =
+	MovementPage
+
+Core.TeleportPage =
+	TeleportPage
+
+Core.SettingsPage =
+	SettingsPage
+
+--============================================================--
+-- DEFAULT TAB
+--============================================================--
+
+SelectTab(
+	"Welcome"
+)
+
+print(
+	"[Hoài Làm Script] Part 2/4 loaded."
+)
+--============================================================--
+--        HOÀI LÀM SCRIPT - PART 3/4                        --
+--              PAGE CONTENT + TOGGLE SYSTEM                 --
+--============================================================--
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local Player = Players.LocalPlayer
+
+--============================================================--
+-- GET CORE
+--============================================================--
+
+local Core = _G.HoaiLamScript
+
+if not Core then
+	warn("[Hoài Làm Script] Part 1/2 chưa được chạy!")
+	return
+end
+
+local CONFIG = Core.Config
+local State = Core.State
+
+local WelcomePage = Core.WelcomePage
+local AimPage = Core.AimPage
+local ESPPage = Core.ESPPage
+local FarmPage = Core.FarmPage
+local MovementPage = Core.MovementPage
+local TeleportPage = Core.TeleportPage
+local SettingsPage = Core.SettingsPage
+
+--============================================================--
+-- PAGE COMPONENTS
+--============================================================--
+
+local function CreateCorner(parent, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius or 10)
+	corner.Parent = parent
+	return corner
+end
+
+local function Header(parent, title, description)
+
+	local frame = Instance.new("Frame")
+
+	frame.Size =
+		UDim2.new(1, -5, 0, 65)
+
+	frame.BackgroundColor3 =
+		CONFIG.Panel2
+
+	frame.BorderSizePixel = 0
+
+	frame.Parent = parent
+
+	CreateCorner(frame, 11)
+
+	local titleLabel =
+		Instance.new("TextLabel")
+
+	titleLabel.BackgroundTransparency = 1
+
+	titleLabel.Position =
+		UDim2.fromOffset(15, 10)
+
+	titleLabel.Size =
+		UDim2.new(1, -30, 0, 25)
+
+	titleLabel.Text =
+		title
+
+	titleLabel.TextColor3 =
+		CONFIG.Text
+
+	titleLabel.TextSize =
+		17
+
+	titleLabel.Font =
+		Enum.Font.GothamBold
+
+	titleLabel.TextXAlignment =
+		Enum.TextXAlignment.Left
+
+	titleLabel.Parent =
+		frame
+
+	local descLabel =
+		Instance.new("TextLabel")
+
+	descLabel.BackgroundTransparency = 1
+
+	descLabel.Position =
+		UDim2.fromOffset(15, 35)
+
+	descLabel.Size =
+		UDim2.new(1, -30, 0, 20)
+
+	descLabel.Text =
+		description
+
+	descLabel.TextColor3 =
+		CONFIG.SubText
+
+	descLabel.TextSize =
+		11
+
+	descLabel.Font =
+		Enum.Font.Gotham
+
+	descLabel.TextXAlignment =
+		Enum.TextXAlignment.Left
+
+	descLabel.Parent =
+		frame
+
+	return frame
+end
+
+--============================================================--
+-- TOGGLE SYSTEM
+--============================================================--
+
+local ToggleCallbacks = {}
+
+local function CreateToggle(
+	parent,
+	name,
+	stateKey,
+	default
+)
+
+	State[stateKey] =
+		default or false
+
+	local button =
+		Instance.new("TextButton")
+
+	button.Name =
+		name
+
+	button.Size =
+		UDim2.new(
+			1,
+			-5,
+			0,
+			48
+		)
+
+	button.BackgroundColor3 =
+		CONFIG.Panel2
+
+	button.BorderSizePixel =
+		0
+
+	button.Text = ""
+
+	button.Parent =
+		parent
+
+	CreateCorner(
+		button,
+		10
+	)
+
+	local label =
+		Instance.new("TextLabel")
+
+	label.BackgroundTransparency =
+		1
+
+	label.Position =
+		UDim2.fromOffset(
+			15,
+			0
+		)
+
+	label.Size =
+		UDim2.new(
+			1,
+			-90,
+			1,
+			0
+		)
+
+	label.Text =
+		name
+
+	label.TextColor3 =
+		CONFIG.Text
+
+	label.TextSize =
+		13
+
+	label.Font =
+		Enum.Font.GothamMedium
+
+	label.TextXAlignment =
+		Enum.TextXAlignment.Left
+
+	label.Parent =
+		button
+
+	local status =
+		Instance.new("TextLabel")
+
+	status.BackgroundTransparency =
+		1
+
+	status.Position =
+		UDim2.new(
+			1,
+			-70,
+			0,
+			0
+		)
+
+	status.Size =
+		UDim2.fromOffset(
+			55,
+			48
+		)
+
+	status.TextSize =
+		11
+
+	status.Font =
+		Enum.Font.GothamBold
+
+	status.Parent =
+		button
+
+	local function Update()
+
+		local enabled =
+			State[stateKey]
+
+		status.Text =
+			enabled
+			and "ON"
+			or "OFF"
+
+		status.TextColor3 =
+			enabled
+			and CONFIG.PurpleLight
+			or CONFIG.SubText
+
+		button.BackgroundColor3 =
+			enabled
+			and Color3.fromRGB(
+				42,
+				25,
+				61
+			)
+			or CONFIG.Panel2
+	end
+
+	button.Activated:Connect(function()
+
+		State[stateKey] =
+			not State[stateKey]
+
+		Update()
+
+		local callback =
+			ToggleCallbacks[stateKey]
+
+		if callback then
+			task.spawn(
+				callback,
+				State[stateKey]
+			)
+		end
+	end)
+
+	Update()
+
+	return button
+end
+
+local function BindToggle(
+	stateKey,
+	callback
+)
+
+	ToggleCallbacks[stateKey] =
+		callback
+
+end
+
+Core.CreateToggle =
+	CreateToggle
+
+Core.BindToggle =
+	BindToggle
+
+--============================================================--
+-- WELCOME
+--============================================================--
+
+Header(
+	WelcomePage,
+	"Chào mừng tới hoài làm script",
+	"Xin chào, " .. Player.Name
+)
+
+Header(
+	WelcomePage,
+	"Server Information",
+	"Thông tin phiên chơi hiện tại"
+)
+
+local ServerInfo =
+	Instance.new("TextLabel")
+
+ServerInfo.Size =
+	UDim2.new(
+		1,
+		-5,
+		0,
+		100
+	)
+
+ServerInfo.BackgroundColor3 =
+	CONFIG.Panel2
+
+ServerInfo.BorderSizePixel =
+	0
+
+ServerInfo.TextColor3 =
+	CONFIG.Text
+
+ServerInfo.TextSize =
+	13
+
+ServerInfo.Font =
+	Enum.Font.Gotham
+
+ServerInfo.TextWrapped =
+	true
+
+ServerInfo.TextXAlignment =
+	Enum.TextXAlignment.Left
+
+ServerInfo.TextYAlignment =
+	Enum.TextYAlignment.Center
+
+ServerInfo.Parent =
+	WelcomePage
+
+CreateCorner(
+	ServerInfo,
+	10
+)
+
+local joinedAt =
+	os.time()
+
+task.spawn(function()
+
+	while ServerInfo.Parent do
+
+		task.wait(1)
+
+		local elapsed =
+			os.time() - joinedAt
+
+		local hours =
+			math.floor(
+				elapsed / 3600
+			)
+
+		local minutes =
+			math.floor(
+				(elapsed % 3600) / 60
+			)
+
+		local seconds =
+			elapsed % 60
+
+		ServerInfo.Text =
+			string.format(
+				"  Người chơi: %s\n\n  Thời gian trong server: %02d:%02d:%02d",
+				Player.Name,
+				hours,
+				minutes,
+				seconds
+			)
+	end
+end)
+
+--============================================================--
+-- AIM
+--============================================================--
+
+Header(
+	AimPage,
+	"Aim Control",
+	"Target controls cho game test của bạn"
+)
+
+CreateToggle(
+	AimPage,
+	"Aim Bot",
+	"AimEnabled",
+	false
+)
+
+CreateToggle(
+	AimPage,
+	"Team Check",
+	"TeamCheck",
+	true
+)
+
+CreateToggle(
+	AimPage,
+	"Wall Check",
+	"WallCheck",
+	true
+)
+
+CreateToggle(
+	AimPage,
+	"360° Target",
+	"Aim360",
+	false
+)
+
+CreateToggle(
+	AimPage,
+	"Silent Aim",
+	"SilentAim",
+	false
+)
+
+--============================================================--
+-- ESP
+--============================================================--
+
+Header(
+	ESPPage,
+	"ESP Player",
+	"Hiển thị thông tin mục tiêu"
+)
+
+CreateToggle(
+	ESPPage,
+	"Player ESP",
+	"PlayerESP",
+	false
+)
+
+CreateToggle(
+	ESPPage,
+	"NPC ESP",
+	"NPCESP",
+	false
+)
+
+CreateToggle(
+	ESPPage,
+	"Distance ESP",
+	"DistanceESP",
+	false
+)
+
+CreateToggle(
+	ESPPage,
+	"HP ESP",
+	"HPESP",
+	false
+)
+
+CreateToggle(
+	ESPPage,
+	"Show Name",
+	"ShowName",
+	true
+)
+
+CreateToggle(
+	ESPPage,
+	"Highlight",
+	"HighlightESP",
+	false
+)
+
+--============================================================--
+-- FARM
+--============================================================--
+
+Header(
+	FarmPage,
+	"Farm System",
+	"Quest / Enemy / Elite / Boss"
+)
+
+CreateToggle(
+	FarmPage,
+	"Auto Quest",
+	"AutoQuest",
+	false
+)
+
+CreateToggle(
+	FarmPage,
+	"Auto Farm",
+	"AutoFarm",
+	false
+)
+
+CreateToggle(
+	FarmPage,
+	"Enemy Farm",
+	"EnemyFarm",
+	false
+)
+
+CreateToggle(
+	FarmPage,
+	"Elite Farm",
+	"EliteFarm",
+	false
+)
+
+CreateToggle(
+	FarmPage,
+	"Boss Farm",
+	"BossFarm",
+	false
+)
+
+CreateToggle(
+	FarmPage,
+	"Gather Enemies",
+	"GatherEnemies",
+	false
+)
+
+--============================================================--
+-- MOVEMENT
+--============================================================--
+
+Header(
+	MovementPage,
+	"Movement",
+	"Điều khiển nhân vật"
+)
+
+CreateToggle(
+	MovementPage,
+	"Speed",
+	"SpeedEnabled",
+	false
+)
+
+CreateToggle(
+	MovementPage,
+	"Jump",
+	"JumpEnabled",
+	false
+)
+
+CreateToggle(
+	MovementPage,
+	"Fly",
+	"FlyEnabled",
+	false
+)
+
+CreateToggle(
+	MovementPage,
+	"NoClip",
+	"NoClip",
+	false
+)
+
+--============================================================--
+-- TELEPORT
+--============================================================--
+
+Header(
+	TeleportPage,
+	"Teleport",
+	"Dịch chuyển và theo dõi mục tiêu"
+)
+
+CreateToggle(
+	TeleportPage,
+	"Follow Target",
+	"FollowTarget",
+	false
+)
+
+CreateToggle(
+	TeleportPage,
+	"Auto Follow",
+	"AutoFollow",
+	false
+)
+
+--============================================================--
+-- SETTINGS
+--============================================================--
+
+Header(
+	SettingsPage,
+	"Settings",
+	"Cài đặt giao diện"
+)
+
+CreateToggle(
+	SettingsPage,
+	"Compact UI",
+	"CompactUI",
+	false
+)
+
+CreateToggle(
+	SettingsPage,
+	"UI Animation",
+	"UIAnimation",
+	true
+)
+
+--============================================================--
+-- EXPORT
+--============================================================--
+
+Core.ToggleCallbacks =
+	ToggleCallbacks
+
+print(
+	"[Hoài Làm Script] Part 3/4 loaded."
+)
+--============================================================--
+--        HOÀI LÀM SCRIPT - PART 4/4                        --
+--        FLOATING LOGO + DRAG + MINIMIZE + CLOSE           --
+--============================================================--
+
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+--============================================================--
+-- GET CORE
+--============================================================--
+
+local Core = _G.HoaiLamScript
+
+if not Core then
+	warn("[Hoài Làm Script] Không tìm thấy Core!")
+	return
+end
+
+local CONFIG = Core.Config
+local State = Core.State
+
+local Gui = Core.Gui
+local Main = Core.Main
+local Top = Core.Top
+
+local Sidebar = Core.Sidebar
+local Content = Core.Content
+
+local Minimize = Core.Minimize
+local Close = Core.Close
+
+if not Gui or not Main or not Top then
+	warn("[Hoài Làm Script] Part 1 chưa được chạy!")
+	return
+end
+
+--============================================================--
+-- TWEEN
+--============================================================--
+
+local function Tween(object, properties, duration)
+
+	local tween = TweenService:Create(
+		object,
+
+		TweenInfo.new(
+			duration or 0.2,
+			Enum.EasingStyle.Quart,
+			Enum.EasingDirection.Out
+		),
+
+		properties
+	)
+
+	tween:Play()
+
+	return tween
+end
+
+--============================================================--
+-- FLOATING LOGO
+--============================================================--
+
+local OpenButton =
+	Instance.new("ImageButton")
+
+OpenButton.Name =
+	"FloatingLogo"
+
+OpenButton.Size =
+	UDim2.fromOffset(
+		58,
+		58
+	)
+
+OpenButton.Position =
+	UDim2.new(
+		0,
+		20,
+		0.5,
+		-29
+	)
+
+OpenButton.BackgroundColor3 =
+	CONFIG.Panel
+
+OpenButton.BorderSizePixel =
+	0
+
+OpenButton.Image =
+	CONFIG.Logo
+
+OpenButton.ScaleType =
+	Enum.ScaleType.Fit
+
+OpenButton.Visible =
+	false
+
+OpenButton.Parent =
+	Gui
+
+--============================================================--
+-- FLOATING LOGO STYLE
+--============================================================--
+
+local LogoCorner =
+	Instance.new("UICorner")
+
+LogoCorner.CornerRadius =
+	UDim.new(
+		0,
+		14
+	)
+
+LogoCorner.Parent =
+	OpenButton
+
+local LogoStroke =
+	Instance.new("UIStroke")
+
+LogoStroke.Color =
+	CONFIG.Purple
+
+LogoStroke.Transparency =
+	0.35
+
+LogoStroke.Thickness =
+	1
+
+LogoStroke.Parent =
+	OpenButton
+
+--============================================================--
+-- FLOATING LOGO HOVER
+--============================================================--
+
+OpenButton.MouseEnter:Connect(function()
+
+	Tween(
+		OpenButton,
+		{
+			Size =
+				UDim2.fromOffset(
+					63,
+					63
+				)
+		},
+		0.12
+	)
+
+end)
+
+OpenButton.MouseLeave:Connect(function()
+
+	Tween(
+		OpenButton,
+		{
+			Size =
+				UDim2.fromOffset(
+					58,
+					58
+				)
+		},
+		0.12
+	)
+
+end)
+
+--============================================================--
+-- FLOATING LOGO DRAG
+--============================================================--
+
+local floatingDragging = false
+
+local floatingStart
+local floatingStartPos
+
+OpenButton.InputBegan:Connect(function(input)
+
+	if input.UserInputType ==
+		Enum.UserInputType.MouseButton1
+
+		or input.UserInputType ==
+		Enum.UserInputType.Touch then
+
+		floatingDragging = true
+
+		floatingStart =
+			input.Position
+
+		floatingStartPos =
+			OpenButton.Position
+
+		input.Changed:Connect(function()
+
+			if input.UserInputState ==
+				Enum.UserInputState.End then
+
+				floatingDragging =
+					false
+
+			end
+
+		end)
+
+	end
+
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+	if not floatingDragging then
+		return
+	end
+
+	if input.UserInputType ==
+		Enum.UserInputType.MouseMovement
+
+		or input.UserInputType ==
+		Enum.UserInputType.Touch then
+
+		local delta =
+			input.Position -
+			floatingStart
+
+		OpenButton.Position =
+			UDim2.new(
+				floatingStartPos.X.Scale,
+				floatingStartPos.X.Offset + delta.X,
+
+				floatingStartPos.Y.Scale,
+				floatingStartPos.Y.Offset + delta.Y
+			)
+
+	end
+
+end)
+
+--============================================================--
+-- SHOW UI
+--============================================================--
+
+local function ShowUI()
+
+	State.UIVisible =
+		true
+
+	Main.Visible =
+		true
+
+	OpenButton.Visible =
+		false
+
+	Main.Size =
+		UDim2.fromOffset(
+			0,
+			0
+		)
+
+	Tween(
+		Main,
+		{
+			Size =
+				UDim2.fromOffset(
+					CONFIG.Width,
+
+					State.Minimized
+						and 64
+						or CONFIG.Height
+				)
+		},
+		0.25
+	)
+
+end
+
+--============================================================--
+-- HIDE UI
+--============================================================--
+
+local function HideUI()
+
+	State.UIVisible =
+		false
+
+	Tween(
+		Main,
+		{
+			Size =
+				UDim2.fromOffset(
+					0,
+					0
+				)
+		},
+		0.2
+	)
+
+	task.delay(
+		0.2,
+		function()
+
+			if not State.UIVisible then
+
+				Main.Visible =
+					false
+
+				OpenButton.Visible =
+					true
+
+			end
+
+		end
+	)
+
+end
+
+--============================================================--
+-- TOGGLE UI
+--============================================================--
+
+local function ToggleUI()
+
+	if State.UIVisible then
+		HideUI()
+	else
+		ShowUI()
+	end
+
+end
+
+--============================================================--
+-- FLOATING BUTTON CLICK
+--============================================================--
+
+OpenButton.Activated:Connect(function()
+
+	ToggleUI()
+
+end)
+
+--============================================================--
+-- MAIN WINDOW DRAG
+--============================================================--
+
+local dragging = false
+
+local dragStart
+local startPosition
+
+Top.InputBegan:Connect(function(input)
+
+	if input.UserInputType ==
+		Enum.UserInputType.MouseButton1
+
+		or input.UserInputType ==
+		Enum.UserInputType.Touch then
+
+		dragging =
+			true
+
+		dragStart =
+			input.Position
+
+		startPosition =
+			Main.Position
+
+		input.Changed:Connect(function()
+
+			if input.UserInputState ==
+				Enum.UserInputState.End then
+
+				dragging =
+					false
+
+			end
+
+		end)
+
+	end
+
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+	if not dragging then
+		return
+	end
+
+	if input.UserInputType ==
+		Enum.UserInputType.MouseMovement
+
+		or input.UserInputType ==
+		Enum.UserInputType.Touch then
+
+		local delta =
+			input.Position -
+			dragStart
+
+		Main.Position =
+			UDim2.new(
+				startPosition.X.Scale,
+				startPosition.X.Offset + delta.X,
+
+				startPosition.Y.Scale,
+				startPosition.Y.Offset + delta.Y
+			)
+
+	end
+
+end)
+
+--============================================================--
+-- MINIMIZE
+--============================================================--
+
+Minimize.Activated:Connect(function()
+
+	State.Minimized =
+		not State.Minimized
+
+	if State.Minimized then
+
+		Sidebar.Visible =
+			false
+
+		Content.Visible =
+			false
+
+		Tween(
+			Main,
+			{
+				Size =
+					UDim2.fromOffset(
+						CONFIG.Width,
+						64
+					)
+			},
+			0.25
+		)
+
+	else
+
+		Tween(
+			Main,
+			{
+				Size =
+					UDim2.fromOffset(
+						CONFIG.Width,
+						CONFIG.Height
+					)
+			},
+			0.25
+		)
+
+		task.delay(
+			0.15,
+			function()
+
+				if not State.Minimized then
+
+					Sidebar.Visible =
+						true
+
+					Content.Visible =
+						true
+
+				end
+
+			end
+		)
+
+	end
+
+end)
+
+--============================================================--
+-- CLOSE
+--============================================================--
+
+Close.Activated:Connect(function()
+
+	State.UIVisible =
+		false
+
+	Tween(
+		Main,
+		{
+			Size =
+				UDim2.fromOffset(
+					0,
+					0
+				)
+		},
+		0.2
+	)
+
+	task.delay(
+		0.22,
+		function()
+
+			if Gui then
+				Gui:Destroy()
+			end
+
+			_G.HoaiLamScript =
+				nil
+
+		end
+	)
+
+end)
+
+--============================================================--
+-- RIGHT CONTROL SHOW / HIDE
+--============================================================--
+
+UserInputService.InputBegan:Connect(
+	function(input, processed)
+
+		if processed then
+			return
+		end
+
+		if input.KeyCode ==
+			CONFIG.ToggleKey then
+
+			ToggleUI()
+
+		end
+
+	end
+)
+
+--============================================================--
+-- EXPORT
+--============================================================--
+
+Core.OpenButton =
+	OpenButton
+
+Core.ShowUI =
+	ShowUI
+
+Core.HideUI =
+	HideUI
+
+Core.ToggleUI =
+	ToggleUI
+
+--============================================================--
+-- READY
+--============================================================--
+
+print(
+	"[Hoài Làm Script] Part 4/4 loaded successfully."
+)
+
+print(
+	"[Hoài Làm Script] UI system ready."
+)
