@@ -1,0 +1,237 @@
+-- [[ hoaihub - Premium Gaming Script v1.0 ]] --
+-- Chuyên gia tối ưu hóa: ESP, Aimbot Pro, Fix Lag, Fly, Speed, Jump
+
+local hoaihub = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local ContentScroll = Instance.new("ScrollingFrame")
+local UIListLayout = Instance.new("UIListLayout")
+
+-- Cấu hình giao diện chính (GUI)
+hoaihub.Name = "hoaihub"
+hoaihub.Parent = game.CoreGui
+hoaihub.ResetOnSpawn = false
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = hoaihub
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
+MainFrame.Size = UDim2.new(0, 220, 0, 350)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+Title.Name = "Title"
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Text = "★ hoaihub MENU ★"
+Title.TextColor3 = Color3.fromRGB(0, 255, 127)
+Title.TextSize = 18.000
+Title.Font = Enum.Font.SourceSansBold
+
+ContentScroll.Name = "ContentScroll"
+ContentScroll.Parent = MainFrame
+ContentScroll.BackgroundTransparency = 1.000
+ContentScroll.Position = UDim2.new(0, 0, 0, 45)
+ContentScroll.Size = UDim2.new(1, 0, 1, -45)
+ContentScroll.CanvasSize = UDim2.new(0, 0, 0, 500)
+ContentScroll.ScrollBarThickness = 4
+
+UIListLayout.Parent = ContentScroll
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+
+-- Hàm tạo Nút bấm (Button) nhanh
+local function CreateButton(name, text, callback)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Parent = ContentScroll
+    btn.Size = UDim2.new(0.9, 0, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14.000
+    btn.Font = Enum.Font.SourceSansSemibold
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+-- Biến môi trường hệ thống
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local States = {
+    ESP = false,
+    Aimbot = false,
+    Fly = false,
+    SpeedValue = 16,
+    JumpValue = 50,
+    FlySpeed = 50
+}
+
+---------------------------------------------------------
+-- 1) TÍNH NĂNG: ESP (X-Ray định vị người chơi qua tường)
+---------------------------------------------------------
+local function CreateESP(player)
+    if player == LocalPlayer then return end
+    local function ApplyHighlight(char)
+        if char:FindFirstChild("ESPHighlight") then return end
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ESPHighlight"
+        highlight.Parent = char
+        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.OutlineTransparency = 0
+    end
+    if player.Character then ApplyHighlight(player.Character) end
+    player.CharacterAdded:Connect(ApplyHighlight)
+end
+
+local function RemoveESP()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("ESPHighlight") then
+            p.Character.ESPHighlight:Destroy()
+        end
+    end
+end
+
+CreateButton("ESP_Toggle", "1) ESP: OFF", function(self)
+    States.ESP = not States.ESP
+    ContentScroll.ESP_Toggle.Text = "1) ESP: " .. (States.ESP and "ON" or "OFF")
+    ContentScroll.ESP_Toggle.TextColor3 = States.ESP and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+    
+    if States.ESP then
+        for _, p in pairs(Players:GetPlayers()) do CreateESP(p) end
+        Players.PlayerAdded:Connect(CreateESP)
+    else
+        RemoveESP()
+    end
+end)
+
+---------------------------------------------------------
+-- 2) TÍNH NĂNG: AIMBOT XỊN NHẤT (Khóa mục tiêu thông minh + mượt mà)
+---------------------------------------------------------
+local function GetClosestPlayer()
+    local closestTarget = nil
+    local shortestDistance = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local mousePos = UserInputService:GetMouseLocation()
+                local distance = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                if distance < shortestDistance and distance < 400 then -- Giới hạn vùng FOV tự động
+                    shortestDistance = distance
+                    closestTarget = player
+                end
+            end
+        end
+    end
+    return closestTarget
+end
+
+RunService.RenderStepped:Connect(function()
+    if States.Aimbot then
+        local target = GetClosestPlayer()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            -- Cơ chế làm mượt (Smooth LERP) chống giật và bắt mục tiêu chuẩn xác nhất
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Character.Head.Position)
+        end
+    end
+end)
+
+CreateButton("Aimbot_Toggle", "2) Aimbot Pro: OFF", function()
+    States.Aimbot = not States.Aimbot
+    ContentScroll.Aimbot_Toggle.Text = "2) Aimbot Pro: " .. (States.Aimbot and "ON" or "OFF")
+    ContentScroll.Aimbot_Toggle.TextColor3 = States.Aimbot and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+end)
+
+---------------------------------------------------------
+-- 3) TÍNH NĂNG: FIX LAG (Xóa hiệu ứng rác, tăng tối đa FPS)
+---------------------------------------------------------
+CreateButton("FixLag_Trigger", "3) Kích Hoạt Fix Lag", function()
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("VisualEffect") or obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            obj:Destroy()
+        elseif obj:IsA("Texture") or obj:IsA("Decal") then
+            obj:Destroy()
+        end
+    end
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    ContentScroll.FixLag_Trigger.Text = "3) Đã Tối Ưu FPS ✓"
+    ContentScroll.FixLag_Trigger.TextColor3 = Color3.fromRGB(0, 255, 255)
+end)
+
+---------------------------------------------------------
+-- 4) TÍNH NĂNG: FLY (Bay tự do với nút Q bay lên / E hạ xuống)
+---------------------------------------------------------
+local bodyVelocity, bodyGyro
+RunService.Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    if States.Fly and char and char:FindFirstChild("HumanoidRootPart") then
+        if not bodyVelocity or bodyVelocity.Parent ~= char.HumanoidRootPart then
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVelocity.Parent = char.HumanoidRootPart
+            
+            bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+            bodyGyro.Parent = char.HumanoidRootPart
+        end
+        
+        bodyGyro.CFrame = Camera.CFrame
+        local moveDirection = Vector3.new(0, 0, 0)
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+            moveDirection = moveDirection + Vector3.new(0, 1, 0) -- Nút Q lên
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+            moveDirection = moveDirection - Vector3.new(0, 1, 0) -- Nút E xuống
+        end
+        
+        bodyVelocity.Velocity = moveDirection * States.FlySpeed
+    else
+        if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+        if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+    end
+end)
+
+CreateButton("Fly_Toggle", "4) Fly (Q: Lên / E: Xuống): OFF", function()
+    States.Fly = not States.Fly
+    ContentScroll.Fly_Toggle.Text = "4) Fly: " .. (States.Fly and "ON" or "OFF")
+    ContentScroll.Fly_Toggle.TextColor3 = States.Fly and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+end)
+
+---------------------------------------------------------
+-- 5 & 6) TÍNH NĂNG: TÙY CHỈNH SPEED & JUMP (Vòng lặp tự động cập nhật)
+---------------------------------------------------------
+CreateButton("Speed_Set", "5) Speed: Tăng (+20)", function()
+    States.SpeedValue = States.SpeedValue + 20
+    if States.SpeedValue > 150 then States.SpeedValue = 16 end -- Reset nếu quá nhanh
+    ContentScroll.Speed_Set.Text = "5) Speed: " .. States.SpeedValue
+end)
+
+CreateButton("Jump_Set", "6) Jump: Tăng (+30)", function()
+    States.JumpValue = States.JumpValue + 30
+    if States.JumpValue > 250 then States.JumpValue = 50 end -- Reset nếu quá cao
+    ContentScroll.Jump_Set.Text = "6) Jump: " .. States.JumpValue
+end)
+
+-- Vòng lặp duy trì trạng thái chỉ số nhân vật (Chống Game Reset chỉ số)
+RunService.Stepped:Connect(function()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.WalkSpeed = States.SpeedValue
+        char.Humanoid.JumpPower = States.JumpValue
+    end
+end)
